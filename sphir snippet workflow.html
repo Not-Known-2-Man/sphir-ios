@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPHIR iOS - Complete Workflow</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@400;500;600;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .device-container {
+            position: relative;
+            width: 390px;
+            height: 844px;
+            background: #000;
+            border-radius: 48px;
+            border: 12px solid #000;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+        }
+
+        .notch {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 210px;
+            height: 30px;
+            background: #000;
+            border-radius: 0 0 30px 30px;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75em;
+            color: white;
+        }
+
+        .notch::before {
+            content: '9:41';
+            margin-right: auto;
+            margin-left: 16px;
+            font-weight: 600;
+        }
+
+        .notch::after {
+            content: '📶 📡 🔋';
+            margin-left: auto;
+            margin-right: 16px;
+            font-size: 1em;
+            letter-spacing: 2px;
+        }
+
+        .screen {
+            width: 100%;
+            height: 100%;
+            background: white;
+            padding-top: 44px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .screen-content {
+            flex: 1;
+            overflow-y: auto;
+            background: white;
+        }
+
+        .screen-content::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .screen-content::-webkit-scrollbar-thumb {
+            background: #d0d0d0;
+            border-radius: 4px;
+        }
+
+        /* DASHBOARD VIEW */
+        .dashboard-view {
+            padding: 20px;
+        }
+
+        .header-section {
+            margin-bottom: 24px;
+        }
+
+        .logo {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.3em;
+            color: #2a2a2a;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        .greeting {
+            font-size: 1.8em;
+            font-weight: 700;
+            color: #2a2a2a;
+            margin-bottom: 4px;
+        }
+
+        .greeting-sub {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .search-box {
+            background: #f5f5f5;
+            border: 1px solid #e8e8e8;
+            border-radius: 24px;
+            padding: 12px 16px;
+            margin: 16px 0;
+            font-size: 0.9em;
+            color: #999;
+        }
+
+        .tabs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 10px 16px;
+            border: 1px solid #e8e8e8;
+            border-radius: 20px;
+            background: white;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.85em;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .tab.active {
+            background: #8b7b68;
+            color: white;
+            border-color: #8b7b68;
+        }
+
+        .section-title {
+            font-weight: 700;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .see-all {
+            font-size: 0.8em;
+            color: #8b7b68;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .collections-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .collection-card {
+            background: #fafafa;
+            border: 1px solid #e8e8e8;
+            border-radius: 12px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .collection-card:active {
+            transform: scale(0.98);
+        }
+
+        .collection-badge {
+            font-size: 0.7em;
+            color: #666;
+            margin-bottom: 12px;
+            display: inline-block;
+        }
+
+        .collection-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #d4cfc0 0%, #c9c2b7 100%);
+            border-radius: 50%;
+            margin-bottom: 12px;
+        }
+
+        .collection-name {
+            font-weight: 600;
+            color: #2a2a2a;
+            margin-bottom: 4px;
+            font-size: 0.9em;
+        }
+
+        .collection-count {
+            font-size: 0.75em;
+            color: #999;
+        }
+
+        /* BROWSER VIEW */
+        .browser-view {
+            padding: 20px;
+        }
+
+        .url-bar {
+            background: #f0ece6;
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 0.75em;
+            color: #666;
+        }
+
+        .article-content {
+            margin-bottom: 40px;
+        }
+
+        .article-content h2 {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.4em;
+            color: #2a2a2a;
+            margin-bottom: 12px;
+            line-height: 1.3;
+        }
+
+        .article-content p {
+            color: #666;
+            font-size: 0.85em;
+            line-height: 1.5;
+        }
+
+        .context-menu {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .context-item {
+            padding: 12px;
+            border: none;
+            background: white;
+            color: #2a2a2a;
+            font-weight: 600;
+            text-align: left;
+            cursor: pointer;
+            width: 100%;
+            border-bottom: 1px solid #e8e8e8;
+            font-size: 0.9em;
+        }
+
+        .context-item:last-child {
+            border-bottom: none;
+            background: #8b7b68;
+            color: white;
+        }
+
+        /* MODAL */
+        .modal-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.3);
+            z-index: 50;
+            display: none;
+        }
+
+        .modal-backdrop.active {
+            display: flex;
+            align-items: flex-end;
+        }
+
+        .modal {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            border-radius: 24px 24px 0 0;
+            max-height: 85%;
+            overflow-y: auto;
+            z-index: 51;
+            padding: 20px;
+            padding-top: 12px;
+        }
+
+        .modal::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .modal::-webkit-scrollbar-thumb {
+            background: #d0d0d0;
+        }
+
+        .modal-handle {
+            width: 40px;
+            height: 4px;
+            background: #d0d0d0;
+            border-radius: 2px;
+            margin: 0 auto 16px;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: none;
+            border: none;
+            font-size: 1.5em;
+            cursor: pointer;
+            color: #999;
+        }
+
+        .modal-title {
+            text-align: center;
+            font-weight: 600;
+            margin-bottom: 4px;
+            font-size: 1.05em;
+        }
+
+        .modal-subtitle {
+            text-align: center;
+            font-size: 0.8em;
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .card-type-options {
+            display: grid;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .card-type-btn {
+            background: white;
+            border: 1px solid #e8e8e8;
+            border-radius: 12px;
+            padding: 16px;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .card-type-btn:active {
+            background: #f5f5f5;
+        }
+
+        .card-type-label {
+            font-weight: 600;
+            margin-bottom: 4px;
+            font-size: 0.95em;
+        }
+
+        .card-type-desc {
+            font-size: 0.8em;
+            color: #666;
+        }
+
+        /* FORM */
+        .form-group {
+            margin-bottom: 18px;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 6px;
+            font-size: 0.85em;
+        }
+
+        .form-input,
+        .form-textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.95em;
+            color: #2a2a2a;
+        }
+
+        .form-input::placeholder,
+        .form-textarea::placeholder {
+            color: #999;
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .cover-preview {
+            width: 100%;
+            height: 140px;
+            background: #f5f5f5;
+            border: 2px dashed #d0d0d0;
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+
+        .card-type-tabs {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 6px;
+            margin-bottom: 16px;
+        }
+
+        .card-type-tab {
+            padding: 8px;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            font-size: 0.7em;
+            font-weight: 600;
+            background: white;
+        }
+
+        .card-type-tab.selected {
+            background: #8b7b68;
+            color: white;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.95em;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #8b7b68;
+            color: white;
+            margin-top: 16px;
+        }
+
+        .btn-secondary {
+            background: white;
+            border: 1px solid #e8e8e8;
+            color: #2a2a2a;
+        }
+
+        /* COLLECTION VIEW */
+        .collection-view {
+            padding: 20px;
+        }
+
+        .collection-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #e8e8e8;
+            padding-bottom: 12px;
+        }
+
+        .back-btn {
+            background: none;
+            border: none;
+            font-size: 1.2em;
+            cursor: pointer;
+            color: #5a4a3a;
+        }
+
+        .collection-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.3em;
+            color: #2a2a2a;
+            font-weight: 700;
+        }
+
+        .cards-list {
+            display: grid;
+            gap: 12px;
+        }
+
+        .card-item {
+            background: #fafafa;
+            border: 1px solid #e8e8e8;
+            border-radius: 12px;
+            padding: 12px;
+            display: flex;
+            gap: 12px;
+        }
+
+        .card-item.new {
+            background: linear-gradient(135deg, #e8ddd4 0%, #f5f2ee 100%);
+            border-color: #8b7b68;
+            animation: slideIn 0.4s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .card-thumbnail {
+            width: 60px;
+            height: 60px;
+            background: #ddd;
+            border-radius: 8px;
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+
+        .card-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .card-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .card-source {
+            font-size: 0.7em;
+            color: #8b7b68;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .card-title {
+            font-weight: 600;
+            color: #2a2a2a;
+            font-size: 0.85em;
+            margin-bottom: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .card-desc {
+            color: #5a4d45;
+            font-size: 0.75em;
+            line-height: 1.3;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+
+        /* DEMO */
+        .demo-info {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            font-size: 0.85em;
+            color: #666;
+            max-width: 300px;
+            z-index: 200;
+        }
+
+        .demo-buttons {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .demo-btn {
+            background: #8b7b68;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.75em;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .demo-btn:hover {
+            background: #7a6b59;
+        }
+
+        .success-message {
+            position: fixed;
+            bottom: 30%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            z-index: 150;
+            animation: popIn 0.3s ease-out;
+        }
+
+        @keyframes popIn {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) scale(0.8);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(-50%) scale(1);
+            }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- DEMO INFO -->
+    <div class="demo-info">
+        <strong>📱 SPHIR iOS</strong><br>
+        Complete Workflow<br>
+        <em style="font-size: 0.8em;">Click buttons below</em>
+    </div>
+
+    <!-- DEMO BUTTONS -->
+    <div class="demo-buttons">
+        <button class="demo-btn" onclick="fullDemo()">▶ Full Demo</button>
+        <button class="demo-btn" onclick="showDashboard()">Dashboard</button>
+        <button class="demo-btn" onclick="showCardTypeModal()">+ Card</button>
+        <button class="demo-btn" onclick="showFilledForm()">Filled Form</button>
+        <button class="demo-btn" onclick="showConfirmation()">Confirm</button>
+    </div>
+
+    <!-- iPhone DEVICE -->
+    <div class="device-container">
+        <div class="notch"></div>
+
+        <div class="screen">
+            <div class="screen-content" id="screenContent">
+                <!-- DASHBOARD VIEW -->
+                <div id="dashboardView" class="dashboard-view">
+                    <div class="header-section">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+                            <div class="logo">SPHIR</div>
+                            <div style="display: flex; gap: 8px;">
+                                <button onclick="showCardTypeModal()" style="background: #8b7b68; color: white; border: none; border-radius: 20px; padding: 8px 16px; font-size: 0.85em; font-weight: 600; cursor: pointer;">+ Card</button>
+                                <button onclick="showCreateCollection()" style="background: #8b7b68; color: white; border: none; border-radius: 20px; padding: 8px 16px; font-size: 0.85em; font-weight: 600; cursor: pointer;">+ Collection</button>
+                            </div>
+                        </div>
+                        <div class="greeting">Good morning, Alex.</div>
+                        <div class="greeting-sub">What are you exploring today?</div>
+                    </div>
+
+                    <input type="text" class="search-box" placeholder="Search collections, groups...">
+
+                    <div class="tabs">
+                        <div class="tab active">📋 Collections</div>
+                        <div class="tab">👥 Groups</div>
+                    </div>
+
+                    <div class="section-title">
+                        <span>Collections</span>
+                        <span class="see-all">See all ></span>
+                    </div>
+
+                    <div class="collections-grid">
+                        <div class="collection-card" onclick="showCollection()">
+                            <div class="collection-badge">🔒 Private</div>
+                            <div class="collection-icon"></div>
+                            <div class="collection-name">Reading List</div>
+                            <div class="collection-count">12 items</div>
+                        </div>
+
+                        <div class="collection-card">
+                            <div class="collection-badge">🌐 Public</div>
+                            <div class="collection-icon"></div>
+                            <div class="collection-name">Inspiration</div>
+                            <div class="collection-count">34 items</div>
+                        </div>
+
+                        <div class="collection-card">
+                            <div class="collection-badge">🔒 Private</div>
+                            <div class="collection-icon"></div>
+                            <div class="collection-name">Work Assets</div>
+                            <div class="collection-count">8 items</div>
+                        </div>
+
+                        <div class="collection-card">
+                            <div class="collection-badge">🌐 Public</div>
+                            <div class="collection-icon"></div>
+                            <div class="collection-name">Mood Board</div>
+                            <div class="collection-count">21 items</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- BROWSER VIEW - REMOVED -->
+
+                <!-- CONFIRMATION SCREEN -->
+                <div id="confirmationView" class="collection-view hidden">
+                    <div class="collection-header">
+                        <button class="back-btn" onclick="showCardForm()">←</button>
+                        <span class="collection-title">Confirm Card</span>
+                    </div>
+
+                    <div style="padding: 16px 0;">
+                        <!-- Card Preview -->
+                        <div style="background: #fafafa; border: 1px solid #e8e8e8; border-radius: 12px; overflow: hidden; margin-bottom: 20px;">
+                            <div style="background: linear-gradient(135deg, #001a4d 0%, #0066ff 100%); height: 160px;"></div>
+                            <div style="padding: 16px;">
+                                <div style="font-size: 0.75em; color: #8b7b68; font-weight: 600; margin-bottom: 8px;">🌐 UNESCO</div>
+                                <h2 style="font-family: 'Playfair Display', serif; font-size: 1.2em; color: #2a2a2a; margin-bottom: 8px; line-height: 1.3;">Inteligencia Artificial y tecnologías emergentes</h2>
+                                <p style="font-size: 0.85em; color: #666; line-height: 1.4;">UNESCO examina el impacto de la inteligencia artificial y las tecnologías emergentes en la educación global, la sociedad y el desarrollo sostenible.</p>
+                            </div>
+                        </div>
+
+                        <!-- Details -->
+                        <div style="background: #f9f9f9; border: 1px solid #e8e8e8; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+                            <div style="margin-bottom: 12px;">
+                                <div style="font-size: 0.8em; color: #999; font-weight: 600; margin-bottom: 4px;">Authors</div>
+                                <div style="font-size: 0.9em; color: #2a2a2a;">UNESCO</div>
+                            </div>
+                            <div style="margin-bottom: 12px;">
+                                <div style="font-size: 0.8em; color: #999; font-weight: 600; margin-bottom: 4px;">Publishers</div>
+                                <div style="font-size: 0.9em; color: #2a2a2a;">UNESCO Editorial</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.8em; color: #999; font-weight: 600; margin-bottom: 4px;">URL</div>
+                                <div style="font-size: 0.8em; color: #0066ff; word-break: break-all;">https://www.unesco.org/es/artificial-intelligence</div>
+                            </div>
+                        </div>
+
+                        <!-- Claim Badge -->
+                        <div id="confirmClaimBadge" style="display: none; background: #e8ddd4; border: 1px solid #8b7b68; border-radius: 8px; padding: 12px; margin-bottom: 20px; text-align: center;">
+                            <div style="font-weight: 600; color: #8b7b68; font-size: 0.9em;">✓ This Card will be claimed</div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <button onclick="showCardForm()" class="btn btn-secondary">← Back</button>
+                        <button onclick="confirmAndSave()" class="btn btn-primary">Confirm & Save</button>
+                    </div>
+                </div>
+
+                <!-- COLLECTION VIEW (Archive) -->
+                <div id="collectionView" class="collection-view hidden">
+                    <div class="collection-header">
+                        <button class="back-btn" onclick="showDashboard()">←</button>
+                        <span class="collection-title">Archive</span>
+                    </div>
+
+                    <!-- Search and filters -->
+                    <input type="text" class="search-box" placeholder="Search archive" style="margin-bottom: 16px;">
+
+                    <!-- Collections Container -->
+                    <div style="display: grid; gap: 16px;">
+                        <!-- MY CLAIMED CARDS -->
+                        <div style="border: 1px solid #e8e8e8; border-radius: 12px; overflow: hidden;">
+                            <div style="background: #f9f9f9; padding: 12px; border-bottom: 1px solid #e8e8e8; display: flex; align-items: center; gap: 8px;">
+                                <div style="width: 12px; height: 12px; background: #8b7b68; border-radius: 3px;"></div>
+                                <span style="font-size: 0.85em; font-weight: 600;">Collection (1 card) 🔒</span>
+                                <button style="margin-left: auto; background: none; border: none; color: #999; cursor: pointer; font-size: 1.2em;">⋯</button>
+                            </div>
+                            <div style="padding: 12px;">
+                                <div style="background: linear-gradient(135deg, #001a4d 0%, #0066ff 100%); border-radius: 8px; height: 120px; margin-bottom: 12px;"></div>
+                                <h3 style="font-weight: 600; font-size: 0.95em; margin-bottom: 4px;">My Claimed Cards</h3>
+                                <p style="font-size: 0.8em; color: #666;">Contains cards you have claimed</p>
+                            </div>
+                        </div>
+
+                        <!-- UNFILED CARDS -->
+                        <div style="border: 1px solid #e8e8e8; border-radius: 12px; overflow: hidden;">
+                            <div style="background: #f9f9f9; padding: 12px; border-bottom: 1px solid #e8e8e8; display: flex; align-items: center; gap: 8px;">
+                                <div style="width: 12px; height: 12px; background: #8b7b68; border-radius: 3px;"></div>
+                                <span style="font-size: 0.85em; font-weight: 600;">Collection (0 cards) 🔒</span>
+                                <button style="margin-left: auto; background: none; border: none; color: #999; cursor: pointer; font-size: 1.2em;">⋯</button>
+                            </div>
+                            <div style="padding: 20px; text-align: center;">
+                                <div style="width: 80px; height: 80px; background: #e8ddd4; border-radius: 12px; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center; font-size: 2em;">📁</div>
+                                <h3 style="font-weight: 600; font-size: 0.95em; margin-bottom: 4px;">Unfiled Cards</h3>
+                                <p style="font-size: 0.8em; color: #666;">Cards without a collection</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL BACKDROP -->
+            <div class="modal-backdrop" id="modalBackdrop"></div>
+
+            <!-- MODAL: SELECT CARD TYPE -->
+            <div class="modal" id="cardTypeModal" style="display: none;">
+                <button class="modal-close" onclick="closeModal()">×</button>
+                <div class="modal-handle"></div>
+                <div class="modal-title">Select Card Type</div>
+                <div class="modal-subtitle">Choose the category that best fits the content</div>
+
+                <div class="card-type-options">
+                    <button class="card-type-btn" onclick="selectCardType('text')">
+                        <div class="card-type-label">Text</div>
+                        <div class="card-type-desc">Article, Blog, Document, etc.</div>
+                    </button>
+                    <button class="card-type-btn" onclick="selectCardType('media')">
+                        <div class="card-type-label">Media</div>
+                        <div class="card-type-desc">Video, Podcast, Audio, etc.</div>
+                    </button>
+                    <button class="card-type-btn" onclick="selectCardType('business')">
+                        <div class="card-type-label">Business</div>
+                        <div class="card-type-desc">Company, Organization, etc.</div>
+                    </button>
+                    <button class="card-type-btn" onclick="selectCardType('product')">
+                        <div class="card-type-label">Product</div>
+                        <div class="card-type-desc">Physical or digital Product</div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- MODAL: CARD FORM -->
+            <div class="modal" id="cardFormModal" style="display: none;">
+                <button class="modal-close" onclick="closeModal()">×</button>
+                <div class="modal-handle"></div>
+                <div class="modal-title">Text Card</div>
+
+                <!-- TOGGLE PARA VER EMPTY VS FILLED -->
+                <div style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid #e8e8e8; padding-bottom: 12px;">
+                    <button onclick="showEmptyForm()" id="emptyFormBtn" style="flex: 1; padding: 8px; border: none; background: #8b7b68; color: white; border-radius: 6px; font-weight: 600; font-size: 0.8em; cursor: pointer;">Empty Form</button>
+                    <button onclick="showFilledForm()" id="filledFormBtn" style="flex: 1; padding: 8px; border: none; background: white; border: 1px solid #e8e8e8; color: #2a2a2a; border-radius: 6px; font-weight: 600; font-size: 0.8em; cursor: pointer;">Filled (Auto-fill)</button>
+                </div>
+
+                <!-- EMPTY FORM VIEW -->
+                <div id="emptyFormView">
+                    <form style="display: none;" id="emptyForm">
+                        <div class="form-group">
+                            <label class="form-label">URL</label>
+                            <input type="url" class="form-input" placeholder="https://example.com">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Title</label>
+                            <input type="text" class="form-input" placeholder="Title">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Card Type</label>
+                            <div class="card-type-tabs">
+                                <button type="button" class="card-type-tab selected">Article</button>
+                                <button type="button" class="card-type-tab">Blog Post</button>
+                                <button type="button" class="card-type-tab">Document</button>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Cover Image</label>
+                            <div class="cover-preview" style="background: #f5f5f5; border: 2px dashed #d0d0d0; color: #999;">📸</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-textarea" placeholder="Description..."></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Authors</label>
+                            <input type="text" class="form-input" placeholder="Authors...">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Publishers</label>
+                            <input type="text" class="form-input" placeholder="Publishers...">
+                        </div>
+
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox">
+                                <span style="font-weight: 600;">Claim this Card</span>
+                            </label>
+                        </div>
+
+                        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                        <button type="submit" class="btn btn-primary" disabled style="background: #d0d0d0; color: #999; cursor: not-allowed;">Done</button>
+                    </form>
+                </div>
+
+                <!-- FILLED FORM VIEW -->
+                <div id="filledFormView">
+                    <form style="display: none;" id="filledForm" onsubmit="handleSubmit(event)">
+                        <div class="form-group">
+                            <label class="form-label">URL</label>
+                            <input type="url" class="form-input" value="https://www.unesco.org/es/artificial-intelligence" readonly style="background: #f9f9f9;">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Title <span class="filled-badge">✓</span></label>
+                            <input type="text" class="form-input" id="filledTitle" value="Inteligencia Artificial y tecnologías emergentes">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Card Type</label>
+                            <div class="card-type-tabs">
+                                <button type="button" class="card-type-tab selected">Article</button>
+                                <button type="button" class="card-type-tab">Blog Post</button>
+                                <button type="button" class="card-type-tab">Document</button>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Cover Image <span class="filled-badge">✓</span></label>
+                            <div class="cover-preview" style="background: linear-gradient(135deg, #001a4d 0%, #0066ff 100%);"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Description <span class="filled-badge">✓</span></label>
+                            <textarea class="form-textarea" id="filledDesc">UNESCO examina el impacto de la inteligencia artificial y las tecnologías emergentes en la educación global, la sociedad y el desarrollo sostenible.</textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Authors <span class="filled-badge">✓</span></label>
+                            <input type="text" class="form-input" id="filledAuthors" value="UNESCO">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Publishers <span class="filled-badge">✓</span></label>
+                            <input type="text" class="form-input" id="filledPublishers" value="UNESCO Editorial">
+                        </div>
+
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" id="claimCheckbox" onchange="handleClaimClick()">
+                                <span style="font-weight: 600;">Claim this Card</span>
+                            </label>
+                        </div>
+
+                        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                        <button type="button" class="btn btn-primary" onclick="showConfirmation()">Done</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- MODAL: CLAIM TERMS -->
+            <div class="modal" id="claimTermsModal" style="display: none;">
+                <button class="modal-close" onclick="closeClaimTerms()">×</button>
+                <div class="modal-handle"></div>
+                <div class="modal-title">BEFORE CLAIMING THIS CARD</div>
+                <div style="margin-top: 20px;">
+                    <div style="font-weight: 700; text-align: center; margin-bottom: 16px; font-size: 0.95em;">
+                        READ THIS IN ITS ENTIRETY
+                    </div>
+
+                    <div style="font-size: 0.8em; line-height: 1.5; color: #2a2a2a; margin-bottom: 16px;">
+                        <p style="margin-bottom: 12px; font-weight: 600;">Creating a Card and claiming a Card are different!</p>
+                        <p style="margin-bottom: 12px;">To claim and manage a Card, you must be one of the following:</p>
+                        <ol style="margin-bottom: 12px; margin-left: 16px;">
+                            <li style="margin-bottom: 8px;">The rightful owner or designated agent of the business</li>
+                            <li style="margin-bottom: 8px;">A valid seller of the product or service</li>
+                            <li>The valid owner or rights holder of the content</li>
+                        </ol>
+                        <p style="color: #d32f2f; font-weight: 600;">DO NOT CLAIM THE CARD if you are not the valid owner.</p>
+                    </div>
+
+                    <div style="margin-bottom: 16px;">
+                        <label style="display: flex; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="agreeCheckbox" onchange="updateClaimBtn()">
+                            <span style="font-size: 0.8em;"><strong>I agree to these terms</strong></span>
+                        </label>
+                    </div>
+
+                    <button onclick="confirmClaim()" id="claimBtn" class="btn btn-primary" disabled style="background: #d0d0d0; color: #999; cursor: not-allowed;">
+                        Claim This Card
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const exampleData = {
+            'https://www.unesco.org/es/artificial-intelligence': {
+                title: 'Inteligencia Artificial y tecnologías emergentes',
+                image: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23001a4d" width="100" height="100"/><circle cx="50" cy="50" r="30" fill="%230066ff"/></svg>',
+                description: 'UNESCO examina el impacto en educación global',
+                authors: 'UNESCO',
+                publishers: 'UNESCO Editorial',
+                source: '🌐 UNESCO'
+            }
+        };
+
+        function showDashboard() {
+            document.getElementById('dashboardView').classList.remove('hidden');
+            document.getElementById('confirmationView').classList.add('hidden');
+            document.getElementById('collectionView').classList.add('hidden');
+            closeModal();
+        }
+
+        function showCreateCollection() {
+            alert('Create Collection feature coming soon!');
+        }
+
+        function showConfirmation() {
+            // Update confirmation based on claim status
+            const isClaimed = document.getElementById('claimCheckbox').checked;
+            const claimBadge = document.getElementById('confirmClaimBadge');
+            if (isClaimed) {
+                claimBadge.style.display = 'block';
+            } else {
+                claimBadge.style.display = 'none';
+            }
+            
+            document.getElementById('dashboardView').classList.add('hidden');
+            document.getElementById('confirmationView').classList.remove('hidden');
+            document.getElementById('collectionView').classList.add('hidden');
+            closeModal();
+        }
+
+        function confirmAndSave() {
+            const cardData = {
+                title: document.getElementById('filledTitle').value,
+                description: document.getElementById('filledDesc').value,
+                source: '🌐 UNESCO',
+                claimed: document.getElementById('claimCheckbox').checked
+            };
+
+            // Show success message
+            const msg = document.createElement('div');
+            msg.className = 'success-message';
+            msg.textContent = '✓ Card saved to Archive';
+            document.body.appendChild(msg);
+
+            setTimeout(() => {
+                // Update My Claimed Cards if claimed
+                if (cardData.claimed) {
+                    const collectionHeaders = document.querySelectorAll('[style*="Collection"]');
+                    collectionHeaders.forEach(header => {
+                        if (header.textContent.includes('Collection (1 card)')) {
+                            header.textContent = 'Collection (2 cards) 🔒';
+                        }
+                    });
+                }
+                
+                showCollection();
+                msg.remove();
+            }, 1500);
+        }
+
+        function showCardForm() {
+            document.getElementById('cardTypeModal').style.display = 'none';
+            document.getElementById('cardFormModal').style.display = 'block';
+            document.getElementById('modalBackdrop').classList.add('active');
+            showEmptyForm(); // Mostrar form vacío por defecto
+        }
+
+        function showEmptyForm() {
+            document.getElementById('emptyForm').style.display = 'block';
+            document.getElementById('filledForm').style.display = 'none';
+            document.getElementById('emptyFormBtn').style.background = '#8b7b68';
+            document.getElementById('emptyFormBtn').style.color = 'white';
+            document.getElementById('filledFormBtn').style.background = 'white';
+            document.getElementById('filledFormBtn').style.color = '#2a2a2a';
+        }
+
+        function showFilledForm() {
+            document.getElementById('emptyForm').style.display = 'none';
+            document.getElementById('filledForm').style.display = 'block';
+            document.getElementById('emptyFormBtn').style.background = 'white';
+            document.getElementById('emptyFormBtn').style.color = '#2a2a2a';
+            document.getElementById('filledFormBtn').style.background = '#8b7b68';
+            document.getElementById('filledFormBtn').style.color = 'white';
+        }
+
+        function showCardTypeModal() {
+            document.getElementById('cardTypeModal').style.display = 'block';
+            document.getElementById('modalBackdrop').classList.add('active');
+        }
+
+        function selectCardType() {
+            showCardForm();
+        }
+
+        function closeModal() {
+            document.getElementById('modalBackdrop').classList.remove('active');
+            document.getElementById('cardTypeModal').style.display = 'none';
+            document.getElementById('cardFormModal').style.display = 'none';
+            document.getElementById('claimTermsModal').style.display = 'none';
+        }
+
+        function handleClaimClick() {
+            if (document.getElementById('claimCheckbox').checked) {
+                document.getElementById('claimTermsModal').style.display = 'block';
+            }
+        }
+
+        function closeClaimTerms() {
+            document.getElementById('claimCheckbox').checked = false;
+            document.getElementById('claimTermsModal').style.display = 'none';
+        }
+
+        function updateClaimBtn() {
+            const btn = document.getElementById('claimBtn');
+            if (document.getElementById('agreeCheckbox').checked) {
+                btn.disabled = false;
+                btn.style.background = '#8b7b68';
+                btn.style.color = 'white';
+                btn.style.cursor = 'pointer';
+            } else {
+                btn.disabled = true;
+                btn.style.background = '#d0d0d0';
+                btn.style.color = '#999';
+                btn.style.cursor = 'not-allowed';
+            }
+        }
+
+        function confirmClaim() {
+            closeClaimTerms();
+        }
+
+        function autoFillMetadata() {
+            const url = document.getElementById('urlInput').value;
+            const data = exampleData[url] || exampleData['https://www.unesco.org/es/artificial-intelligence'];
+
+            setTimeout(() => {
+                document.getElementById('titleInput').value = data.title;
+                document.getElementById('descInput').value = data.description;
+                document.getElementById('authorsInput').value = data.authors;
+                document.getElementById('publishersInput').value = data.publishers;
+                document.getElementById('coverPreview').innerHTML = `<img src="${data.image}" alt="Cover" style="width:100%; height:100%; object-fit:cover;">`;
+            }, 800);
+        }
+
+        function showCollection() {
+            document.getElementById('dashboardView').classList.add('hidden');
+            document.getElementById('confirmationView').classList.add('hidden');
+            document.getElementById('collectionView').classList.remove('hidden');
+            closeModal();
+        }
+
+        function handleSubmit(event) {
+            event.preventDefault();
+
+            closeModal();
+
+            const msg = document.createElement('div');
+            msg.className = 'success-message';
+            msg.textContent = '✓ Card saved to Reading List';
+            document.body.appendChild(msg);
+
+            setTimeout(() => {
+                const cardData = {
+                    title: document.getElementById('titleInput').value,
+                    description: document.getElementById('descInput').value,
+                    source: exampleData['https://www.unesco.org/es/artificial-intelligence'].source,
+                    claimed: document.getElementById('claimCheckbox').checked
+                };
+
+                addNewCard(cardData);
+                showCollection();
+                msg.remove();
+            }, 1500);
+        }
+
+        function addNewCard(data) {
+            // Update "My Claimed Cards" count if claimed
+            if (data.claimed) {
+                const claimedCollection = document.querySelector('[style*="My Claimed Cards"]')?.closest('[style*="border: 1px"]');
+                if (claimedCollection) {
+                    // Update count from (1 card) to (2 cards) etc
+                    const header = claimedCollection.querySelector('[style*="Collection"]');
+                    const match = header.textContent.match(/\((\d+)/);
+                    if (match) {
+                        const newCount = parseInt(match[1]) + 1;
+                        header.textContent = `Collection (${newCount} card${newCount > 1 ? 's' : ''}) 🔒`;
+                    }
+                }
+            }
+        }
+
+        function fullDemo() {
+            showDashboard();
+            setTimeout(() => showCardTypeModal(), 1000);
+            setTimeout(() => selectCardType(), 1500);
+            setTimeout(() => showFilledForm(), 2000);
+            setTimeout(() => showConfirmation(), 3000);
+        }
+    </script>
+</body>
+</html>
