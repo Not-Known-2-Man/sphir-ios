@@ -86,8 +86,9 @@ struct ScreenshotCardView: View {
                 onPick: handlePick,
                 onCancel: {
                     showPicker = false
-                    // Backed out without choosing anything → leave the flow.
-                    if image == nil { flow.dismissAll() }
+                    // Backed out without choosing anything → return to the
+                    // source list (dismiss just this cover).
+                    if image == nil { flow.showScreenshotForm = false }
                 }
             )
             .ignoresSafeArea()

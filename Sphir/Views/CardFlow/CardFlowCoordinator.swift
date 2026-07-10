@@ -18,6 +18,7 @@ final class CardFlowCoordinator: ObservableObject {
     @Published var showSource = false           // Step 2 sheet
     @Published var showForm = false             // Step 3 full-screen cover
     @Published var showScreenshotForm = false   // Screenshot + OCR full-screen cover
+    @Published var showPhotoForm = false        // Photos / Camera full-screen cover
 
     // Selections carried across steps.
     @Published var selectedType: CardType?
@@ -50,10 +51,22 @@ final class CardFlowCoordinator: ObservableObject {
         showScreenshotForm = true
     }
 
+    /// Advance from Step 2 into the Photos or Camera flow.
+    func selectPhotos() {
+        selectedSource = .photos
+        showPhotoForm = true
+    }
+
+    func selectCamera() {
+        selectedSource = .camera
+        showPhotoForm = true
+    }
+
     /// Collapse the entire flow back to the dashboard.
     func dismissAll() {
         showForm = false
         showScreenshotForm = false
+        showPhotoForm = false
         showSource = false
         showType = false
     }
@@ -62,6 +75,7 @@ final class CardFlowCoordinator: ObservableObject {
     func addAnother() {
         showForm = false
         showScreenshotForm = false
+        showPhotoForm = false
         showSource = false
         selectedType = nil
         selectedSource = nil

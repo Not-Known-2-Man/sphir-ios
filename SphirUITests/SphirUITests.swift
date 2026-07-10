@@ -41,10 +41,11 @@ final class SphirUITests: XCTestCase {
         XCTAssertTrue(textType.waitForExistence(timeout: 3), "Card type list should appear.")
         textType.tap()
 
-        // Step 2: Select Source → From Photos
-        let photosSource = app.buttons["cardSource_photos"]
-        XCTAssertTrue(photosSource.waitForExistence(timeout: 3), "Source list should appear.")
-        photosSource.tap()
+        // Step 2: Select Source → Paste URL (leads to the manual card form;
+        // Photos/Camera/Screenshots open system pickers instead).
+        let urlSource = app.buttons["cardSource_url"]
+        XCTAssertTrue(urlSource.waitForExistence(timeout: 3), "Source list should appear.")
+        urlSource.tap()
 
         // Step 3: Form → enter a title and save.
         let titleField = app.textFields["cardTitleField"]

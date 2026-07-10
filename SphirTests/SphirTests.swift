@@ -154,4 +154,27 @@ struct SphirTests {
         #expect(updatedFirst.cardCount == cardCountBefore + 1)
     }
 
+    /// A photo card stores the image + metadata details with the photos source.
+    @MainActor
+    @Test func addsPhotoCardWithImageAndMetadata() async throws {
+        let store = AppStore()
+        let first = try #require(store.collections.first)
+        let cardCountBefore = first.cardCount
+        let jpeg = Data([0xFF, 0xD8, 0xFF, 0xDB])
+
+        store.addPhotoCard(
+            title: "Photo — Jul 10, 2026",
+            content: "Taken: Jul 10, 2026 at 9:41 AM\nCamera: Apple iPhone",
+            imageData: jpeg,
+            collectionID: first.id
+        )
+
+        let updatedFirst = try #require(store.collections.first { $0.id == first.id })
+        let card = try #require(store.cards(in: first.id).first { $0.title == "Photo — Jul 10, 2026" })
+        #expect(card.imageData == jpeg)
+        #expect(card.sourceApp == .photos)
+        #expect(card.content.contains("Camera: Apple iPhone"))
+        #expect(updatedFirst.cardCount == cardCountBefore + 1)
+    }
+
 }

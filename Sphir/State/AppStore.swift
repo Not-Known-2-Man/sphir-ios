@@ -131,14 +131,49 @@ final class AppStore: ObservableObject {
         imageData: Data?,
         collectionID: UUID? = nil
     ) -> Card {
+        addImageCard(
+            title: title.isEmpty ? "Screenshot" : title,
+            content: content,
+            imageData: imageData,
+            sourceApp: .screenshot,
+            collectionID: collectionID
+        )
+    }
+
+    /// Create a card from a photo (library or camera): stores the image plus
+    /// any extracted EXIF metadata as the card's content.
+    @discardableResult
+    func addPhotoCard(
+        title: String,
+        content: String,
+        imageData: Data?,
+        collectionID: UUID? = nil
+    ) -> Card {
+        addImageCard(
+            title: title.isEmpty ? "Photo" : title,
+            content: content,
+            imageData: imageData,
+            sourceApp: .photos,
+            collectionID: collectionID
+        )
+    }
+
+    @discardableResult
+    private func addImageCard(
+        title: String,
+        content: String,
+        imageData: Data?,
+        sourceApp: SourceApp,
+        collectionID: UUID?
+    ) -> Card {
         guard let index = resolveTargetIndex(collectionID) else {
             return Card(title: title)
         }
         let card = Card(
-            title: title.isEmpty ? "Screenshot" : title,
+            title: title,
             content: content,
             cardType: .text,
-            sourceApp: .screenshot,
+            sourceApp: sourceApp,
             imageData: imageData,
             collectionID: collections[index].id
         )
