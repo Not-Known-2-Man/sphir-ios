@@ -1,0 +1,28 @@
+# Xcode / Swift
+## Build generated
+build/
+Products/
+DerivedData/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+## User settings & workspace state
+xcuserdata/
+*.xcuserstate
+*.xcuserdatad/
+
+## Swift Package Manager
+.build/
+.swiftpm/
+
+## macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+## Misc
+*.log
+*~
