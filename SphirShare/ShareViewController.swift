@@ -32,8 +32,8 @@ final class ShareViewController: UIViewController {
         let root = ShareView(
             urlString: urlString,
             collections: collections,
-            onSave: { [weak self] collectionID in
-                self?.save(collectionID: collectionID)
+            onSave: { [weak self] collectionID, title, description, imageData in
+                self?.save(collectionID: collectionID, title: title, description: description, imageData: imageData)
             },
             onCancel: { [weak self] in
                 self?.cancel()
@@ -72,12 +72,16 @@ final class ShareViewController: UIViewController {
 
     // MARK: - Actions
 
-    private func save(collectionID: UUID?) {
-        let title = deriveTitle(from: urlString)
+    private func save(collectionID: UUID?, title: String, description: String, imageData: Data?) {
+        let resolvedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? deriveTitle(from: urlString)
+            : title
         let card = SharedCardDTO(
             id: UUID(),
-            title: title,
+            title: resolvedTitle,
+            description: description,
             urlString: urlString ?? "",
+            imageData: imageData,
             collectionID: collectionID,
             createdAt: Date()
         )

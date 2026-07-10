@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct CollectionDetailView: View {
     let collection: Collection
@@ -71,14 +72,7 @@ struct CardRowView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Circle()
-                .fill(SphirColor.taupe.opacity(0.12))
-                .frame(width: 40, height: 40)
-                .overlay(
-                    Image(systemName: card.cardType.iconName)
-                        .font(.system(size: 16))
-                        .foregroundColor(SphirColor.taupe)
-                )
+            thumbnail
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(card.title)
@@ -86,15 +80,22 @@ struct CardRowView: View {
                     .foregroundColor(SphirColor.textPrimary)
                     .lineLimit(1)
 
-                HStack(spacing: 6) {
-                    Image(systemName: card.sourceApp.iconName)
-                        .font(.system(size: 10))
-                    Text(card.sourceApp.label)
-                    Text("·")
-                    Text(DetailDateFormatter.string(from: card.createdAt))
+                if !card.description.isEmpty {
+                    Text(card.description)
+                        .font(SphirFont.body(12))
+                        .foregroundColor(SphirColor.mutedText)
+                        .lineLimit(2)
+                } else {
+                    HStack(spacing: 6) {
+                        Image(systemName: card.sourceApp.iconName)
+                            .font(.system(size: 10))
+                        Text(card.sourceApp.label)
+                        Text("·")
+                        Text(DetailDateFormatter.string(from: card.createdAt))
+                    }
+                    .font(SphirFont.body(12))
+                    .foregroundColor(SphirColor.mutedText)
                 }
-                .font(SphirFont.body(12))
-                .foregroundColor(SphirColor.mutedText)
             }
 
             Spacer()
@@ -106,6 +107,26 @@ struct CardRowView: View {
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 12).fill(SphirColor.cardBackground))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(SphirColor.border, lineWidth: 1))
+    }
+
+    @ViewBuilder
+    private var thumbnail: some View {
+        if let data = card.imageData, let uiImage = UIImage(data: data) {
+            Image(uiImage: uiImage)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 44, height: 44)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+        } else {
+            Circle()
+                .fill(SphirColor.taupe.opacity(0.12))
+                .frame(width: 44, height: 44)
+                .overlay(
+                    Image(systemName: card.cardType.iconName)
+                        .font(.system(size: 16))
+                        .foregroundColor(SphirColor.taupe)
+                )
+        }
     }
 }
 

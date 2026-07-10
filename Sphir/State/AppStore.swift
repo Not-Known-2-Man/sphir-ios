@@ -46,12 +46,13 @@ final class AppStore: ObservableObject {
         for dto in pending {
             addCard(
                 title: dto.title.isEmpty ? "Shared Link" : dto.title,
-                description: "",
+                description: dto.description,
                 urlText: dto.urlString,
                 tagsText: "",
                 type: .text,
                 source: .url,
-                collectionID: dto.collectionID
+                collectionID: dto.collectionID,
+                imageData: dto.imageData
             )
         }
         SharedInbox.clearPendingCards()
@@ -75,7 +76,8 @@ final class AppStore: ObservableObject {
         tagsText: String,
         type: CardType,
         source: CardSource,
-        collectionID: UUID? = nil
+        collectionID: UUID? = nil,
+        imageData: Data? = nil
     ) -> Card {
         let tags = tagsText
             .split(separator: ",")
@@ -97,6 +99,7 @@ final class AppStore: ObservableObject {
             content: source == .url ? urlText : "",
             cardType: type,
             sourceApp: source.mappedSourceApp,
+            imageData: imageData,
             tags: tags,
             collectionID: targetID
         )

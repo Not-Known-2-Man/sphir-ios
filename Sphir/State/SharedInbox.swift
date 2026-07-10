@@ -23,9 +23,29 @@ struct SharedCollectionDTO: Codable, Identifiable, Hashable {
 struct SharedCardDTO: Codable, Identifiable, Hashable {
     let id: UUID
     let title: String
+    let description: String
     let urlString: String
+    let imageData: Data?
     let collectionID: UUID?
     let createdAt: Date
+
+    init(
+        id: UUID,
+        title: String,
+        description: String = "",
+        urlString: String,
+        imageData: Data? = nil,
+        collectionID: UUID?,
+        createdAt: Date
+    ) {
+        self.id = id
+        self.title = title
+        self.description = description
+        self.urlString = urlString
+        self.imageData = imageData
+        self.collectionID = collectionID
+        self.createdAt = createdAt
+    }
 }
 
 /// Read/write access to the shared App Group container.

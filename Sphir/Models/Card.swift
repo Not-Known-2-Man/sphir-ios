@@ -41,6 +41,8 @@ struct Card: Identifiable, Hashable {
     var cardType: CardType
     var sourceApp: SourceApp
     var imageURL: String?
+    /// Thumbnail image bytes fetched from link metadata, if any.
+    var imageData: Data?
     var tags: [String]
     var syncStatus: SyncStatus
     var createdAt: Date
@@ -55,6 +57,7 @@ struct Card: Identifiable, Hashable {
         cardType: CardType = .text,
         sourceApp: SourceApp = .safari,
         imageURL: String? = nil,
+        imageData: Data? = nil,
         tags: [String] = [],
         syncStatus: SyncStatus = .synced,
         createdAt: Date = Date(),
@@ -67,6 +70,7 @@ struct Card: Identifiable, Hashable {
         self.cardType = cardType
         self.sourceApp = sourceApp
         self.imageURL = imageURL
+        self.imageData = imageData
         self.tags = tags
         self.syncStatus = syncStatus
         self.createdAt = createdAt

@@ -72,4 +72,33 @@ struct SphirTests {
         #expect(SharedInbox.loadPendingCards().isEmpty)
     }
 
+    /// Metadata captured by the extension (title, description, thumbnail)
+    /// survives the App Group round-trip onto the imported Card.
+    @MainActor
+    @Test func importedCardCarriesMetadata() async throws {
+        SharedInbox.clearPendingCards()
+
+        let store = AppStore()
+        let first = try #require(store.collections.first)
+        let thumbnail = Data([0x01, 0x02, 0x03, 0x04])
+
+        SharedInbox.enqueueCard(
+            SharedCardDTO(
+                id: UUID(),
+                title: "Apple",
+                description: "Think different.",
+                urlString: "https://apple.com",
+                imageData: thumbnail,
+                collectionID: first.id,
+                createdAt: Date()
+            )
+        )
+        store.importPendingSharedCards()
+
+        let card = try #require(store.cards(in: first.id).first { $0.content == "https://apple.com" })
+        #expect(card.title == "Apple")
+        #expect(card.description == "Think different.")
+        #expect(card.imageData == thumbnail)
+    }
+
 }

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct CardDetailView: View {
     let card: Card
@@ -24,7 +25,14 @@ struct CardDetailView: View {
                         .font(SphirFont.heading(24, weight: .bold))
                         .foregroundColor(SphirColor.textPrimary)
 
-                    imagePlaceholder
+                    coverImage
+
+                    if !card.description.isEmpty {
+                        Text(card.description)
+                            .font(SphirFont.body(15))
+                            .foregroundColor(SphirColor.mutedText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
 
                     if !card.content.isEmpty {
                         Text(card.content)
@@ -63,19 +71,31 @@ struct CardDetailView: View {
         .background(Capsule().fill(card.syncStatus.color.opacity(0.12)))
     }
 
-    private var imagePlaceholder: some View {
-        RoundedRectangle(cornerRadius: 12)
-            .fill(SphirColor.cardBackgroundAlt)
-            .frame(height: 180)
-            .overlay(
-                Image(systemName: "photo")
-                    .font(.system(size: 32))
-                    .foregroundColor(SphirColor.lightTaupe)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(SphirColor.border, lineWidth: 1)
-            )
+    @ViewBuilder
+    private var coverImage: some View {
+        if let data = card.imageData, let uiImage = UIImage(data: data) {
+            Image(uiImage: uiImage)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12).stroke(SphirColor.border, lineWidth: 1)
+                )
+        } else {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(SphirColor.cardBackgroundAlt)
+                .frame(height: 180)
+                .overlay(
+                    Image(systemName: "photo")
+                        .font(.system(size: 32))
+                        .foregroundColor(SphirColor.lightTaupe)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(SphirColor.border, lineWidth: 1)
+                )
+        }
     }
 
     private var tagCloud: some View {
