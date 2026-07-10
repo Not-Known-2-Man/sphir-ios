@@ -122,6 +122,31 @@ final class AppStore: ObservableObject {
         return card
     }
 
+    /// Create a card from an OCR'd screenshot: stores the image plus the
+    /// extracted text as the card's content.
+    @discardableResult
+    func addScreenshotCard(
+        title: String,
+        content: String,
+        imageData: Data?,
+        collectionID: UUID? = nil
+    ) -> Card {
+        guard let index = resolveTargetIndex(collectionID) else {
+            return Card(title: title)
+        }
+        let card = Card(
+            title: title.isEmpty ? "Screenshot" : title,
+            content: content,
+            cardType: .text,
+            sourceApp: .screenshot,
+            imageData: imageData,
+            collectionID: collections[index].id
+        )
+        cards.append(card)
+        collections[index].cardCount += 1
+        return card
+    }
+
     /// Create a new collection from the "+Collection" flow.
     @discardableResult
     func addCollection(

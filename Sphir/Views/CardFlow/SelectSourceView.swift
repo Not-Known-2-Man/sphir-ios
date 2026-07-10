@@ -30,7 +30,11 @@ struct SelectSourceView: View {
                             minHeight: 72,
                             identifier: "cardSource_\(source.rawValue)"
                         ) {
-                            flow.selectSource(source)
+                            if source == .screenshots {
+                                flow.selectScreenshots()
+                            } else {
+                                flow.selectSource(source)
+                            }
                         }
                     }
                 }
@@ -43,6 +47,12 @@ struct SelectSourceView: View {
         // Step 3
         .fullScreenCover(isPresented: $flow.showForm) {
             CardFormView()
+                .environmentObject(flow)
+                .environmentObject(appStore)
+        }
+        // Screenshot + OCR flow
+        .fullScreenCover(isPresented: $flow.showScreenshotForm) {
+            ScreenshotCardView()
                 .environmentObject(flow)
                 .environmentObject(appStore)
         }

@@ -14,9 +14,10 @@ import Combine
 @MainActor
 final class CardFlowCoordinator: ObservableObject {
     // Presentation flags — each bound to a sheet/cover in the flow.
-    @Published var showType = false     // Step 1 sheet
-    @Published var showSource = false   // Step 2 sheet
-    @Published var showForm = false     // Step 3 full-screen cover
+    @Published var showType = false             // Step 1 sheet
+    @Published var showSource = false           // Step 2 sheet
+    @Published var showForm = false             // Step 3 full-screen cover
+    @Published var showScreenshotForm = false   // Screenshot + OCR full-screen cover
 
     // Selections carried across steps.
     @Published var selectedType: CardType?
@@ -43,9 +44,16 @@ final class CardFlowCoordinator: ObservableObject {
         showForm = true
     }
 
+    /// Advance from Step 2 into the screenshot + OCR flow.
+    func selectScreenshots() {
+        selectedSource = .screenshots
+        showScreenshotForm = true
+    }
+
     /// Collapse the entire flow back to the dashboard.
     func dismissAll() {
         showForm = false
+        showScreenshotForm = false
         showSource = false
         showType = false
     }
@@ -53,6 +61,7 @@ final class CardFlowCoordinator: ObservableObject {
     /// Rewind to Step 1, keeping the type sheet presented.
     func addAnother() {
         showForm = false
+        showScreenshotForm = false
         showSource = false
         selectedType = nil
         selectedSource = nil

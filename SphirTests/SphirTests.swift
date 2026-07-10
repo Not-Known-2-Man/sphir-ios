@@ -129,4 +129,29 @@ struct SphirTests {
         #expect(SharedInbox.loadPendingCards().isEmpty)
     }
 
+    /// A screenshot card stores the image + extracted text and bumps the count.
+    @MainActor
+    @Test func addsScreenshotCardWithImageAndText() async throws {
+        let store = AppStore()
+        let first = try #require(store.collections.first)
+        let countBefore = store.cards(in: first.id).count
+        let cardCountBefore = first.cardCount
+        let png = Data([0xFF, 0xD8, 0xFF, 0xE0])
+
+        store.addScreenshotCard(
+            title: "Receipt total",
+            content: "Receipt total\n$42.00\nThank you",
+            imageData: png,
+            collectionID: first.id
+        )
+
+        let updatedFirst = try #require(store.collections.first { $0.id == first.id })
+        let card = try #require(store.cards(in: first.id).first { $0.title == "Receipt total" })
+        #expect(card.content == "Receipt total\n$42.00\nThank you")
+        #expect(card.imageData == png)
+        #expect(card.sourceApp == .screenshot)
+        #expect(store.cards(in: first.id).count == countBefore + 1)
+        #expect(updatedFirst.cardCount == cardCountBefore + 1)
+    }
+
 }
