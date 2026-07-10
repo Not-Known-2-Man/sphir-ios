@@ -2,11 +2,11 @@
 //  MetadataService.swift
 //  SphirShare
 //
-//  Fetches rich link metadata (title + thumbnail) for a shared URL using
-//  Apple's LinkPresentation framework. No backend required.
-//
-//  Note: LPLinkMetadata does not publicly expose og:description, so only
-//  title and image are extracted here; `description` is left to callers.
+//  Fetches rich link metadata for a shared URL:
+//   - title + thumbnail via Apple's LinkPresentation framework
+//   - description by fetching the page HTML and parsing the
+//     <meta property="og:description"> tag (LinkPresentation does not
+//     expose it). No backend required.
 //
 
 import Foundation
@@ -15,35 +15,40 @@ import UIKit
 
 struct LinkMetadata {
     var title: String?
+    var description: String?
     var imageData: Data?
 }
 
 enum MetadataService {
 
     /// Fetch metadata for a URL string. Returns nil if the string isn't a
-    /// valid URL or the fetch fails; never throws.
+    /// valid URL; individual pieces may be nil if unavailable. Never throws.
     static func fetch(urlString: String) async -> LinkMetadata? {
         guard let url = URL(string: urlString) else { return nil }
 
-        let provider = LPMetadataProvider()
-        provider.shouldFetchSubresources = true
+        // Run LinkPresentation (title + image) and the HTML description
+        // fetch concurrently.
+        async let linkPresentation = fetchLinkPresentation(url: url)
+        async let description = fetchOGDescription(url: url)
 
-        do {
-            let metadata = try await provider.startFetchingMetadata(for: url)
-
-            // Prefer the hero image; fall back to the site icon.
-            var imageData = await loadImageData(from: metadata.imageProvider)
-            if imageData == nil {
-                imageData = await loadImageData(from: metadata.iconProvider)
-            }
-
-            return LinkMetadata(title: metadata.title, imageData: imageData)
-        } catch {
-            return nil
-        }
+        let (lp, desc) = await (linkPresentation, description)
+        return LinkMetadata(title: lp.title, description: desc, imageData: lp.imageData)
     }
 
-    // MARK: - Image loading
+    // MARK: - LinkPresentation (title + image)
+
+    private static func fetchLinkPresentation(url: URL) async -> (title: String?, imageData: Data?) {
+        let provider = LPMetadataProvider()
+        provider.shouldFetchSubresources = true
+        guard let metadata = try? await provider.startFetchingMetadata(for: url) else {
+            return (nil, nil)
+        }
+        var imageData = await loadImageData(from: metadata.imageProvider)
+        if imageData == nil {
+            imageData = await loadImageData(from: metadata.iconProvider)
+        }
+        return (metadata.title, imageData)
+    }
 
     private static func loadImageData(from provider: NSItemProvider?) async -> Data? {
         guard let provider, provider.canLoadObject(ofClass: UIImage.self) else { return nil }
@@ -58,7 +63,6 @@ enum MetadataService {
         }
     }
 
-    /// Downscale to keep the stored thumbnail small (App Group storage).
     private static func downscaledJPEG(_ image: UIImage, maxDimension: CGFloat = 512) -> Data? {
         let longest = max(image.size.width, image.size.height)
         let target: UIImage
@@ -71,5 +75,67 @@ enum MetadataService {
             target = image
         }
         return target.jpegData(compressionQuality: 0.7)
+    }
+
+    // MARK: - og:description (HTML fetch + parse)
+
+    private static func fetchOGDescription(url: URL) async -> String? {
+        guard url.scheme == "http" || url.scheme == "https" else { return nil }
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 10
+        request.setValue(
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+            forHTTPHeaderField: "User-Agent"
+        )
+
+        guard let (data, _) = try? await URLSession.shared.data(for: request) else { return nil }
+        guard let html = String(data: data, encoding: .utf8)
+            ?? String(data: data, encoding: .isoLatin1) else { return nil }
+
+        let raw = metaContent(in: html, attribute: "property", value: "og:description")
+            ?? metaContent(in: html, attribute: "name", value: "description")
+        guard let raw, !raw.isEmpty else { return nil }
+        return decodeEntities(raw).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Find a <meta> tag's `content`, handling either attribute order.
+    private static func metaContent(in html: String, attribute: String, value: String) -> String? {
+        let escapedValue = NSRegularExpression.escapedPattern(for: value)
+        let patterns = [
+            "<meta[^>]*\\b\(attribute)=[\"']\(escapedValue)[\"'][^>]*\\bcontent=[\"']([^\"']*)[\"']",
+            "<meta[^>]*\\bcontent=[\"']([^\"']*)[\"'][^>]*\\b\(attribute)=[\"']\(escapedValue)[\"']"
+        ]
+        for pattern in patterns {
+            if let match = firstCaptureGroup(in: html, pattern: pattern) {
+                return match
+            }
+        }
+        return nil
+    }
+
+    private static func firstCaptureGroup(in text: String, pattern: String) -> String? {
+        guard let regex = try? NSRegularExpression(
+            pattern: pattern,
+            options: [.caseInsensitive, .dotMatchesLineSeparators]
+        ) else { return nil }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        guard let match = regex.firstMatch(in: text, options: [], range: range),
+              match.numberOfRanges > 1,
+              let captureRange = Range(match.range(at: 1), in: text) else { return nil }
+        return String(text[captureRange])
+    }
+
+    /// Decode the handful of HTML entities common in meta descriptions.
+    private static func decodeEntities(_ string: String) -> String {
+        var result = string
+        let replacements = [
+            "&amp;": "&", "&lt;": "<", "&gt;": ">",
+            "&quot;": "\"", "&#39;": "'", "&#x27;": "'", "&apos;": "'"
+        ]
+        for (entity, character) in replacements {
+            result = result.replacingOccurrences(of: entity, with: character)
+        }
+        return result
     }
 }

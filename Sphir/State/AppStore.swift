@@ -44,18 +44,32 @@ final class AppStore: ObservableObject {
         guard !pending.isEmpty else { return }
 
         for dto in pending {
-            addCard(
-                title: dto.title.isEmpty ? "Shared Link" : dto.title,
+            let isLink = !dto.urlString.isEmpty
+            let title = dto.title.isEmpty ? (isLink ? "Shared Link" : "Shared Text") : dto.title
+
+            guard let index = resolveTargetIndex(dto.collectionID) else { continue }
+
+            let card = Card(
+                title: title,
                 description: dto.description,
-                urlText: dto.urlString,
-                tagsText: "",
-                type: .text,
-                source: .url,
-                collectionID: dto.collectionID,
-                imageData: dto.imageData
+                content: isLink ? dto.urlString : dto.bodyText,
+                cardType: .text,
+                sourceApp: SourceApp(rawValue: dto.sourceAppRaw) ?? .safari,
+                imageData: dto.imageData,
+                collectionID: collections[index].id
             )
+            cards.append(card)
+            collections[index].cardCount += 1
         }
         SharedInbox.clearPendingCards()
+    }
+
+    /// The index of the requested collection, else the first one.
+    private func resolveTargetIndex(_ collectionID: UUID?) -> Int? {
+        if let collectionID, let idx = collections.firstIndex(where: { $0.id == collectionID }) {
+            return idx
+        }
+        return collections.indices.first
     }
 
     /// Cards belonging to a given collection, newest first.
@@ -85,12 +99,7 @@ final class AppStore: ObservableObject {
             .filter { !$0.isEmpty }
 
         // Resolve the destination collection (requested, else the first one).
-        let targetIndex: Int?
-        if let collectionID, let idx = collections.firstIndex(where: { $0.id == collectionID }) {
-            targetIndex = idx
-        } else {
-            targetIndex = collections.indices.first
-        }
+        let targetIndex = resolveTargetIndex(collectionID)
         let targetID = targetIndex.map { collections[$0].id }
 
         let card = Card(

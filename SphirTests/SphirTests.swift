@@ -101,4 +101,32 @@ struct SphirTests {
         #expect(card.imageData == thumbnail)
     }
 
+    /// A text share (Mail body / Messages text, no URL) imports as a text card
+    /// with the body as its content and the correct source app.
+    @MainActor
+    @Test func importsTextShareAsBodyCard() async throws {
+        SharedInbox.clearPendingCards()
+
+        let store = AppStore()
+        let first = try #require(store.collections.first)
+        let body = "Lunch at noon? Here's the spot: https://maps.example.com/x"
+
+        SharedInbox.enqueueCard(
+            SharedCardDTO(
+                id: UUID(),
+                title: "Lunch at noon?",
+                bodyText: body,
+                sourceAppRaw: "messages",
+                collectionID: first.id,
+                createdAt: Date()
+            )
+        )
+        store.importPendingSharedCards()
+
+        let card = try #require(store.cards(in: first.id).first { $0.content == body })
+        #expect(card.title == "Lunch at noon?")
+        #expect(card.sourceApp == .messages)
+        #expect(SharedInbox.loadPendingCards().isEmpty)
+    }
+
 }

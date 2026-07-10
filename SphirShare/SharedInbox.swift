@@ -21,7 +21,11 @@ struct SharedCardDTO: Codable, Identifiable, Hashable {
     let title: String
     let description: String
     let urlString: String
+    /// Body text for non-URL shares (Mail/Messages).
+    let bodyText: String
     let imageData: Data?
+    /// SourceApp rawValue ("safari", "mail", "messages", …).
+    let sourceAppRaw: String
     let collectionID: UUID?
     let createdAt: Date
 
@@ -29,8 +33,10 @@ struct SharedCardDTO: Codable, Identifiable, Hashable {
         id: UUID,
         title: String,
         description: String = "",
-        urlString: String,
+        urlString: String = "",
+        bodyText: String = "",
         imageData: Data? = nil,
+        sourceAppRaw: String = "safari",
         collectionID: UUID?,
         createdAt: Date
     ) {
@@ -38,7 +44,9 @@ struct SharedCardDTO: Codable, Identifiable, Hashable {
         self.title = title
         self.description = description
         self.urlString = urlString
+        self.bodyText = bodyText
         self.imageData = imageData
+        self.sourceAppRaw = sourceAppRaw
         self.collectionID = collectionID
         self.createdAt = createdAt
     }

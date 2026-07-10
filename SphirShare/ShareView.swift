@@ -2,17 +2,35 @@
 //  ShareView.swift
 //  SphirShare
 //
-//  SwiftUI UI for the "Save to Sphir" share sheet. Fetches rich link
-//  metadata (title + thumbnail) while the user picks a collection.
+//  "Save to Sphir" share sheet. Handles two kinds of shared content:
+//   - a web URL (Safari) → fetches title, og:description, and thumbnail
+//   - text (Mail body / Messages) → captures the body text
 //
 
 import SwiftUI
 
-struct ShareView: View {
+/// What the extension extracted from the host.
+struct SharedContent {
+    var urlString: String?
+    var text: String?
+
+    var isLink: Bool { !(urlString ?? "").isEmpty }
+}
+
+/// What the user confirmed in the sheet, handed back for saving.
+struct SharePayload {
+    let collectionID: UUID?
+    let title: String
+    let description: String
     let urlString: String?
+    let bodyText: String?
+    let imageData: Data?
+}
+
+struct ShareView: View {
+    let content: SharedContent
     let collections: [SharedCollectionDTO]
-    /// (collectionID, title, description, imageData)
-    let onSave: (UUID?, String, String, Data?) -> Void
+    let onSave: (SharePayload) -> Void
     let onCancel: () -> Void
 
     @State private var selectedCollectionID: UUID?
@@ -34,8 +52,18 @@ struct ShareView: View {
                     .font(ShareFont.heading(18, weight: .bold))
                     .foregroundColor(ShareColor.textPrimary)
 
-                preview
+                if content.isLink {
+                    linkPreview
+                } else {
+                    textPreview
+                }
+
                 titleField
+
+                if content.isLink {
+                    descriptionField
+                }
+
                 collectionPicker
                 buttons
             }
@@ -47,26 +75,37 @@ struct ShareView: View {
             if selectedCollectionID == nil {
                 selectedCollectionID = collections.first?.id
             }
-            await fetchMetadata()
+            await prepare()
         }
     }
 
-    // MARK: - Metadata
+    // MARK: - Preparation
 
-    private func fetchMetadata() async {
-        guard let urlString else { return }
-        isLoadingMetadata = true
-        let metadata = await MetadataService.fetch(urlString: urlString)
-        if let fetchedTitle = metadata?.title, !fetchedTitle.isEmpty {
-            title = fetchedTitle
+    private func prepare() async {
+        if content.isLink, let urlString = content.urlString {
+            isLoadingMetadata = true
+            let metadata = await MetadataService.fetch(urlString: urlString)
+            if let fetchedTitle = metadata?.title, !fetchedTitle.isEmpty {
+                title = fetchedTitle
+            }
+            if let fetchedDescription = metadata?.description {
+                descriptionText = fetchedDescription
+            }
+            imageData = metadata?.imageData
+            isLoadingMetadata = false
+        } else if let text = content.text {
+            // Text share: seed the title from the first non-empty line.
+            let firstLine = text
+                .split(whereSeparator: \.isNewline)
+                .first
+                .map(String.init) ?? ""
+            title = firstLine.isEmpty ? "Shared Text" : String(firstLine.prefix(80))
         }
-        imageData = metadata?.imageData
-        isLoadingMetadata = false
     }
 
-    // MARK: - Preview (image + URL)
+    // MARK: - Link Preview
 
-    private var preview: some View {
+    private var linkPreview: some View {
         VStack(spacing: 10) {
             ZStack {
                 RoundedRectangle(cornerRadius: 12)
@@ -80,8 +119,7 @@ struct ShareView: View {
                         .frame(height: 140)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                 } else if isLoadingMetadata {
-                    ProgressView()
-                        .tint(ShareColor.taupe)
+                    ProgressView().tint(ShareColor.taupe)
                 } else {
                     Image(systemName: "link")
                         .font(.system(size: 28))
@@ -91,17 +129,34 @@ struct ShareView: View {
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(ShareColor.border, lineWidth: 1))
 
             HStack(spacing: 8) {
-                Image(systemName: "link")
-                    .foregroundColor(ShareColor.mutedText)
-                Text(urlString ?? "No link found")
+                Image(systemName: "link").foregroundColor(ShareColor.mutedText)
+                Text(content.urlString ?? "")
                     .font(ShareFont.body(12))
-                    .foregroundColor(urlString == nil ? ShareColor.mutedText : ShareColor.textPrimary)
+                    .foregroundColor(ShareColor.textPrimary)
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer(minLength: 0)
             }
         }
     }
+
+    // MARK: - Text Preview
+
+    private var textPreview: some View {
+        ScrollView {
+            Text(content.text ?? "")
+                .font(ShareFont.body(13))
+                .foregroundColor(ShareColor.textPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(height: 120)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(RoundedRectangle(cornerRadius: 12).fill(ShareColor.cardBackgroundAlt))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(ShareColor.border, lineWidth: 1))
+    }
+
+    // MARK: - Fields
 
     private var titleField: some View {
         HStack {
@@ -121,6 +176,17 @@ struct ShareView: View {
         .padding(.vertical, 12)
         .background(RoundedRectangle(cornerRadius: 12).fill(ShareColor.cardBackground))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(ShareColor.border, lineWidth: 1))
+    }
+
+    private var descriptionField: some View {
+        TextField("Description", text: $descriptionText, axis: .vertical)
+            .font(ShareFont.body(13))
+            .foregroundColor(ShareColor.mutedText)
+            .lineLimit(2...4)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(RoundedRectangle(cornerRadius: 12).fill(ShareColor.cardBackground))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(ShareColor.border, lineWidth: 1))
     }
 
     private var collectionPicker: some View {
@@ -169,7 +235,16 @@ struct ShareView: View {
             }
 
             Button {
-                onSave(selectedCollectionID, title, descriptionText, imageData)
+                onSave(
+                    SharePayload(
+                        collectionID: selectedCollectionID,
+                        title: title,
+                        description: descriptionText,
+                        urlString: content.urlString,
+                        bodyText: content.text,
+                        imageData: imageData
+                    )
+                )
             } label: {
                 Text("Save")
                     .font(ShareFont.body(16, weight: .semibold))

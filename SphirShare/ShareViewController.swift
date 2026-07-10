@@ -2,8 +2,13 @@
 //  ShareViewController.swift
 //  SphirShare
 //
-//  Principal class for the Safari share extension. Extracts the shared URL,
-//  hosts the SwiftUI ShareView, and enqueues a card to the App Group.
+//  Principal class for the share extension. Extracts a shared web URL and/or
+//  text, hosts the SwiftUI ShareView, and enqueues a card to the App Group.
+//
+//  Note: iOS does not tell an extension which app invoked it, nor does it
+//  expose structured Mail subject/sender fields. We extract whatever the host
+//  provides: a web URL (→ link card) and/or text (→ text card, e.g. a Mail
+//  body or Messages text, links included inline).
 //
 
 import UIKit
@@ -12,15 +17,14 @@ import UniformTypeIdentifiers
 
 final class ShareViewController: UIViewController {
 
-    private var urlString: String?
+    private var content = SharedContent()
 
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .clear
 
-        loadSharedURL { [weak self] extracted in
-            guard let self else { return }
-            self.urlString = extracted
+        Task {
+            self.content = await loadSharedContent()
             self.presentShareUI()
         }
     }
@@ -30,10 +34,10 @@ final class ShareViewController: UIViewController {
         let collections = stored.isEmpty ? SharedInbox.fallbackCollections : stored
 
         let root = ShareView(
-            urlString: urlString,
+            content: content,
             collections: collections,
-            onSave: { [weak self] collectionID, title, description, imageData in
-                self?.save(collectionID: collectionID, title: title, description: description, imageData: imageData)
+            onSave: { [weak self] payload in
+                self?.save(payload)
             },
             onCancel: { [weak self] in
                 self?.cancel()
@@ -49,40 +53,77 @@ final class ShareViewController: UIViewController {
         host.didMove(toParent: self)
     }
 
-    // MARK: - URL Extraction
+    // MARK: - Content Extraction
 
-    private func loadSharedURL(completion: @escaping (String?) -> Void) {
-        guard let item = extensionContext?.inputItems.first as? NSExtensionItem,
-              let provider = item.attachments?.first else {
-            completion(nil)
-            return
+    private func loadSharedContent() async -> SharedContent {
+        var urlString: String?
+        var text: String?
+
+        guard let items = extensionContext?.inputItems as? [NSExtensionItem] else {
+            return SharedContent()
         }
 
-        let urlType = UTType.url.identifier
-        guard provider.hasItemConformingToTypeIdentifier(urlType) else {
-            completion(nil)
-            return
+        for item in items {
+            // The host-provided text (e.g. a Mail body or Messages selection).
+            if text == nil, let attributed = item.attributedContentText?.string,
+               !attributed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                text = attributed
+            }
+
+            for provider in item.attachments ?? [] {
+                if urlString == nil,
+                   provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
+                    urlString = await loadWebURL(provider)
+                } else if text == nil,
+                          provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
+                    text = await loadText(provider)
+                }
+            }
         }
 
-        provider.loadItem(forTypeIdentifier: urlType, options: nil) { data, _ in
-            let extracted = (data as? URL)?.absoluteString
-            DispatchQueue.main.async { completion(extracted) }
+        return SharedContent(urlString: urlString, text: text)
+    }
+
+    private func loadWebURL(_ provider: NSItemProvider) async -> String? {
+        await withCheckedContinuation { continuation in
+            provider.loadItem(forTypeIdentifier: UTType.url.identifier, options: nil) { data, _ in
+                // Only accept web URLs, not file:// URLs.
+                if let url = data as? URL, url.scheme == "http" || url.scheme == "https" {
+                    continuation.resume(returning: url.absoluteString)
+                } else {
+                    continuation.resume(returning: nil)
+                }
+            }
+        }
+    }
+
+    private func loadText(_ provider: NSItemProvider) async -> String? {
+        await withCheckedContinuation { continuation in
+            provider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { data, _ in
+                if let string = data as? String {
+                    continuation.resume(returning: string)
+                } else if let data = data as? Data, let string = String(data: data, encoding: .utf8) {
+                    continuation.resume(returning: string)
+                } else {
+                    continuation.resume(returning: nil)
+                }
+            }
         }
     }
 
     // MARK: - Actions
 
-    private func save(collectionID: UUID?, title: String, description: String, imageData: Data?) {
-        let resolvedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? deriveTitle(from: urlString)
-            : title
+    private func save(_ payload: SharePayload) {
+        let isLink = !(payload.urlString ?? "").isEmpty
         let card = SharedCardDTO(
             id: UUID(),
-            title: resolvedTitle,
-            description: description,
-            urlString: urlString ?? "",
-            imageData: imageData,
-            collectionID: collectionID,
+            title: payload.title,
+            description: payload.description,
+            urlString: payload.urlString ?? "",
+            bodyText: isLink ? "" : (payload.bodyText ?? ""),
+            imageData: payload.imageData,
+            sourceAppRaw: isLink ? "safari" : "messages",
+            collectionID: payload.collectionID,
             createdAt: Date()
         )
         SharedInbox.enqueueCard(card)
@@ -92,13 +133,5 @@ final class ShareViewController: UIViewController {
     private func cancel() {
         let error = NSError(domain: "com.Sphir.SphirShare", code: 0, userInfo: nil)
         extensionContext?.cancelRequest(withError: error)
-    }
-
-    /// Use the host of the URL as a friendly title, falling back sensibly.
-    private func deriveTitle(from urlString: String?) -> String {
-        guard let urlString, let host = URL(string: urlString)?.host else {
-            return "Shared Link"
-        }
-        return host.replacingOccurrences(of: "www.", with: "")
     }
 }
