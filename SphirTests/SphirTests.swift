@@ -6,6 +6,7 @@
 //
 
 import Testing
+import Foundation
 @testable import Sphir
 
 struct SphirTests {
