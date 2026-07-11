@@ -61,7 +61,12 @@ final class SphirUITests: XCTestCase {
             app.staticTexts["Card Saved!"].waitForExistence(timeout: 3),
             "Success screen should appear after saving."
         )
-        app.buttons["backToDashboardButton"].tap()
+        // Tap "Back to Dashboard" if it's still up; otherwise the 3s
+        // auto-dismiss returns us to the dashboard on its own.
+        let backButton = app.buttons["backToDashboardButton"]
+        if backButton.waitForExistence(timeout: 1) {
+            backButton.tap()
+        }
 
         // Back on the dashboard the count should have incremented to 13.
         XCTAssertTrue(

@@ -19,6 +19,7 @@ struct DashboardView: View {
     @State private var selectedTab: DashboardTab = .collections
     @State private var searchText: String = ""
     @State private var showCollectionFlow = false
+    @State private var showSettings = false
     @StateObject private var cardFlow = CardFlowCoordinator()
 
     private let gridColumns = [
@@ -73,6 +74,10 @@ struct DashboardView: View {
             CreateCollectionView()
                 .environmentObject(appStore)
         }
+        // Settings.
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+        }
     }
 
     // MARK: - Sticky Header
@@ -96,14 +101,19 @@ struct DashboardView: View {
                     .foregroundColor(SphirColor.textPrimary)
             }
 
-            Circle()
-                .fill(SphirColor.lightTaupe)
-                .frame(width: 32, height: 32)
-                .overlay(
-                    Text("A")
-                        .font(SphirFont.body(14, weight: .semibold))
-                        .foregroundColor(.white)
-                )
+            Button {
+                showSettings = true
+            } label: {
+                Circle()
+                    .fill(SphirColor.lightTaupe)
+                    .frame(width: 32, height: 32)
+                    .overlay(
+                        Text("A")
+                            .font(SphirFont.body(14, weight: .semibold))
+                            .foregroundColor(.white)
+                    )
+            }
+            .accessibilityIdentifier("settingsButton")
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)

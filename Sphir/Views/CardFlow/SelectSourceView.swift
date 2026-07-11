@@ -45,9 +45,9 @@ struct SelectSourceView: View {
             }
         }
         .background(SphirColor.background.ignoresSafeArea())
-        // Step 3
+        // Step 3 — Paste URL
         .fullScreenCover(isPresented: $flow.showForm) {
-            CardFormView()
+            URLCardView()
                 .environmentObject(flow)
                 .environmentObject(appStore)
         }
