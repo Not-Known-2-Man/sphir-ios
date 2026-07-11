@@ -2,56 +2,103 @@
 //  Persistence.swift
 //  Sphir
 //
-//  Created by Saul Alejandro on 09/07/26.
+//  CoreData stack. The model is defined programmatically (so it doesn't
+//  depend on the .xcdatamodeld), and the store lives in the App Group
+//  container so it persists across launches and shares a location with the
+//  share extension's data.
 //
 
 import CoreData
 
-struct PersistenceController {
-    static let shared = PersistenceController()
-
-    @MainActor
-    static let preview: PersistenceController = {
-        let result = PersistenceController(inMemory: true)
-        let viewContext = result.container.viewContext
-        for _ in 0..<10 {
-            let newItem = Item(context: viewContext)
-            newItem.timestamp = Date()
-        }
-        do {
-            try viewContext.save()
-        } catch {
-            // Replace this implementation with code to handle the error appropriately.
-            // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-            let nsError = error as NSError
-            fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
-        }
-        return result
-    }()
+final class PersistenceController {
+    /// Shared instance. Uses an in-memory store during UI tests so runs start
+    /// from a clean, deterministic state.
+    static let shared = PersistenceController(
+        inMemory: ProcessInfo.processInfo.arguments.contains("UITEST")
+    )
 
     let container: NSPersistentContainer
 
-    init(inMemory: Bool = false) {
-        container = NSPersistentContainer(name: "Sphir")
-        if inMemory {
-            container.persistentStoreDescriptions.first!.url = URL(fileURLWithPath: "/dev/null")
-        }
-        container.loadPersistentStores(completionHandler: { (storeDescription, error) in
-            if let error = error as NSError? {
-                // Replace this implementation with code to handle the error appropriately.
-                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
+    private static let appGroupID = "group.com.sphir.shared"
+    private static let storeName = "Sphir.sqlite"
 
-                /*
-                 Typical reasons for an error here include:
-                 * The parent directory does not exist, cannot be created, or disallows writing.
-                 * The persistent store is not accessible, due to permissions or data protection when the device is locked.
-                 * The device is out of space.
-                 * The store could not be migrated to the current model version.
-                 Check the error message to determine what the actual problem was.
-                 */
-                fatalError("Unresolved error \(error), \(error.userInfo)")
+    init(inMemory: Bool = false, storeURL: URL? = nil) {
+        container = NSPersistentContainer(
+            name: "SphirStore",
+            managedObjectModel: PersistenceController.model
+        )
+
+        let description = NSPersistentStoreDescription()
+        if inMemory {
+            description.type = NSInMemoryStoreType
+        } else if let storeURL {
+            description.url = storeURL
+        } else if let groupURL = FileManager.default
+            .containerURL(forSecurityApplicationGroupIdentifier: Self.appGroupID) {
+            description.url = groupURL.appendingPathComponent(Self.storeName)
+        }
+        description.shouldAddStoreAsynchronously = false
+        container.persistentStoreDescriptions = [description]
+
+        container.loadPersistentStores { _, error in
+            if let error {
+                // Don't crash the app; log so the issue is visible in dev.
+                print("Sphir CoreData store failed to load: \(error)")
             }
-        })
+        }
         container.viewContext.automaticallyMergesChangesFromParent = true
+        container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
     }
+
+    // MARK: - Programmatic model
+
+    static let model: NSManagedObjectModel = {
+        let model = NSManagedObjectModel()
+
+        func attribute(
+            _ name: String,
+            _ type: NSAttributeType,
+            optional: Bool = true,
+            external: Bool = false
+        ) -> NSAttributeDescription {
+            let attr = NSAttributeDescription()
+            attr.name = name
+            attr.attributeType = type
+            attr.isOptional = optional
+            if external { attr.allowsExternalBinaryDataStorage = true }
+            return attr
+        }
+
+        let collection = NSEntityDescription()
+        collection.name = "CDCollection"
+        collection.managedObjectClassName = "NSManagedObject"
+        collection.properties = [
+            attribute("id", .UUIDAttributeType, optional: false),
+            attribute("name", .stringAttributeType),
+            attribute("collectionDescription", .stringAttributeType),
+            attribute("privacy", .stringAttributeType),
+            attribute("createdAt", .dateAttributeType)
+        ]
+
+        let card = NSEntityDescription()
+        card.name = "CDCard"
+        card.managedObjectClassName = "NSManagedObject"
+        card.properties = [
+            attribute("id", .UUIDAttributeType, optional: false),
+            attribute("title", .stringAttributeType),
+            attribute("cardDescription", .stringAttributeType),
+            attribute("content", .stringAttributeType),
+            attribute("cardType", .stringAttributeType),
+            attribute("sourceApp", .stringAttributeType),
+            attribute("imageURL", .stringAttributeType),
+            attribute("imageData", .binaryDataAttributeType, external: true),
+            attribute("tagsJSON", .stringAttributeType),
+            attribute("syncStatus", .stringAttributeType),
+            attribute("createdAt", .dateAttributeType),
+            attribute("collectionID", .UUIDAttributeType)
+        ]
+
+        model.entities = [collection, card]
+        return model
+    }()
 }

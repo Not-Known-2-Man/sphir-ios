@@ -7,9 +7,17 @@
 
 import Testing
 import Foundation
+import CoreData
 @testable import Sphir
 
 struct SphirTests {
+
+    /// An isolated, in-memory store so tests don't touch (or persist into)
+    /// the shared App Group CoreData store.
+    @MainActor
+    private func makeStore() -> AppStore {
+        AppStore(context: PersistenceController(inMemory: true).container.viewContext)
+    }
 
     @Test func example() async throws {
         // Write your test here and use APIs like `#expect(...)` to check expected conditions.
@@ -32,7 +40,7 @@ struct SphirTests {
             )
         )
 
-        let store = AppStore()
+        let store = makeStore()
         let first = try #require(store.collections.first)
 
         #expect(store.cards(in: first.id).contains { $0.content == "https://example.com/article" })
@@ -46,7 +54,7 @@ struct SphirTests {
     @Test func importsSharedCardOnForegroundResume() async throws {
         SharedInbox.clearPendingCards()
 
-        let store = AppStore()
+        let store = makeStore()
         let first = try #require(store.collections.first)
         let countBefore = store.cards(in: first.id).count
         let cardCountBefore = first.cardCount
@@ -78,7 +86,7 @@ struct SphirTests {
     @Test func importedCardCarriesMetadata() async throws {
         SharedInbox.clearPendingCards()
 
-        let store = AppStore()
+        let store = makeStore()
         let first = try #require(store.collections.first)
         let thumbnail = Data([0x01, 0x02, 0x03, 0x04])
 
@@ -107,7 +115,7 @@ struct SphirTests {
     @Test func importsTextShareAsBodyCard() async throws {
         SharedInbox.clearPendingCards()
 
-        let store = AppStore()
+        let store = makeStore()
         let first = try #require(store.collections.first)
         let body = "Lunch at noon? Here's the spot: https://maps.example.com/x"
 
@@ -132,7 +140,7 @@ struct SphirTests {
     /// A screenshot card stores the image + extracted text and bumps the count.
     @MainActor
     @Test func addsScreenshotCardWithImageAndText() async throws {
-        let store = AppStore()
+        let store = makeStore()
         let first = try #require(store.collections.first)
         let countBefore = store.cards(in: first.id).count
         let cardCountBefore = first.cardCount
@@ -157,7 +165,7 @@ struct SphirTests {
     /// A photo card stores the image + metadata details with the photos source.
     @MainActor
     @Test func addsPhotoCardWithImageAndMetadata() async throws {
-        let store = AppStore()
+        let store = makeStore()
         let first = try #require(store.collections.first)
         let cardCountBefore = first.cardCount
         let jpeg = Data([0xFF, 0xD8, 0xFF, 0xDB])
@@ -175,6 +183,75 @@ struct SphirTests {
         #expect(card.sourceApp == .photos)
         #expect(card.content.contains("Camera: Apple iPhone"))
         #expect(updatedFirst.cardCount == cardCountBefore + 1)
+    }
+
+    /// Collections and cards written to a store survive being reopened from
+    /// the same on-disk CoreData store (simulates an app relaunch).
+    @MainActor
+    @Test func cardsAndCollectionsPersistAcrossReloads() async throws {
+        SharedInbox.clearPendingCards()
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SphirTest-\(UUID().uuidString).sqlite")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let controllerA = PersistenceController(storeURL: url)
+        let storeA = AppStore(context: controllerA.container.viewContext, seedIfEmpty: false)
+        let collection = storeA.addCollection(name: "Persisted Collection", privacy: .private)
+        storeA.addCard(
+            title: "Persisted Card",
+            description: "",
+            urlText: "https://persist.example",
+            tagsText: "keep",
+            type: .text,
+            source: .url,
+            collectionID: collection.id
+        )
+
+        // Reopen the same store with a fresh controller/context.
+        let controllerB = PersistenceController(storeURL: url)
+        let storeB = AppStore(context: controllerB.container.viewContext, seedIfEmpty: false)
+
+        #expect(storeB.collections.contains { $0.name == "Persisted Collection" })
+        #expect(storeB.cards.contains { $0.title == "Persisted Card" })
+    }
+
+    /// Editing a card updates its fields.
+    @MainActor
+    @Test func editingCardUpdatesFields() async throws {
+        let store = makeStore()
+        let first = try #require(store.collections.first)
+        let created = store.addCard(
+            title: "Old", description: "", urlText: "", tagsText: "",
+            type: .text, source: .url, collectionID: first.id
+        )
+
+        var edited = created
+        edited.title = "New Title"
+        edited.content = "New content"
+        edited.tags = ["a", "b"]
+        store.updateCard(edited)
+
+        let reloaded = try #require(store.cards.first { $0.id == created.id })
+        #expect(reloaded.title == "New Title")
+        #expect(reloaded.content == "New content")
+        #expect(reloaded.tags == ["a", "b"])
+    }
+
+    /// Deleting a card removes it and decrements the collection count.
+    @MainActor
+    @Test func deletingCardRemovesItAndUpdatesCount() async throws {
+        let store = makeStore()
+        let first = try #require(store.collections.first)
+        let created = store.addCard(
+            title: "Doomed", description: "", urlText: "", tagsText: "",
+            type: .text, source: .url, collectionID: first.id
+        )
+        let countAfterAdd = store.cards(in: first.id).count
+
+        store.deleteCard(id: created.id)
+
+        #expect(!store.cards.contains { $0.id == created.id })
+        #expect(store.cards(in: first.id).count == countAfterAdd - 1)
     }
 
 }

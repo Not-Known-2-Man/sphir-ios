@@ -41,7 +41,7 @@ struct DashboardView: View {
                         ZStack {
                             switch selectedTab {
                             case .collections:
-                                collectionsGrid
+                                collectionsContent
                                     .transition(.move(edge: .leading).combined(with: .opacity))
                             case .groups:
                                 GroupsView(groups: SphirGroup.mockGroups)
@@ -179,6 +179,8 @@ struct DashboardView: View {
             TextField("Search collections...", text: $searchText)
                 .font(SphirFont.body(15))
                 .foregroundColor(SphirColor.textPrimary)
+                .autocorrectionDisabled()
+                .accessibilityIdentifier("searchField")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -223,17 +225,81 @@ struct DashboardView: View {
         )
     }
 
-    // MARK: - Collections Grid
+    // MARK: - Collections + Search
+
+    private var trimmedQuery: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var isSearching: Bool { !trimmedQuery.isEmpty }
+
+    private var filteredCollections: [Collection] {
+        guard isSearching else { return appStore.collections }
+        return appStore.collections.filter {
+            $0.name.localizedCaseInsensitiveContains(trimmedQuery)
+                || $0.description.localizedCaseInsensitiveContains(trimmedQuery)
+        }
+    }
+
+    private var matchingCards: [Card] {
+        guard isSearching else { return [] }
+        return appStore.cards
+            .filter {
+                $0.title.localizedCaseInsensitiveContains(trimmedQuery)
+                    || $0.content.localizedCaseInsensitiveContains(trimmedQuery)
+                    || $0.description.localizedCaseInsensitiveContains(trimmedQuery)
+                    || $0.tags.contains { $0.localizedCaseInsensitiveContains(trimmedQuery) }
+            }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    private var collectionsContent: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            if !filteredCollections.isEmpty {
+                collectionsGrid
+            } else if isSearching {
+                Text("No matching collections")
+                    .font(SphirFont.body(13))
+                    .foregroundColor(SphirColor.mutedText)
+            }
+
+            if isSearching {
+                matchingCardsSection
+            }
+        }
+    }
 
     private var collectionsGrid: some View {
         LazyVGrid(columns: gridColumns, spacing: 16) {
-            ForEach(appStore.collections) { collection in
+            ForEach(filteredCollections) { collection in
                 NavigationLink(value: collection) {
                     CollectionCardView(collection: collection)
                 }
                 .buttonStyle(.plain)
             }
         }
+    }
+
+    private var matchingCardsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Cards")
+                .font(SphirFont.body(14, weight: .semibold))
+                .foregroundColor(SphirColor.mutedText)
+
+            if matchingCards.isEmpty {
+                Text("No matching cards")
+                    .font(SphirFont.body(13))
+                    .foregroundColor(SphirColor.mutedText)
+            } else {
+                ForEach(matchingCards) { card in
+                    NavigationLink(value: card) {
+                        CardRowView(card: card)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

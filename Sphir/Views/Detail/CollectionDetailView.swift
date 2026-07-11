@@ -14,6 +14,9 @@ struct CollectionDetailView: View {
     @EnvironmentObject private var appStore: AppStore
     @Environment(\.dismiss) private var dismiss
 
+    @State private var editingCard: Card?
+    @State private var pendingDelete: Card?
+
     private var cards: [Card] { appStore.cards(in: collection.id) }
 
     var body: some View {
@@ -29,6 +32,18 @@ struct CollectionDetailView: View {
                             CardRowView(card: card)
                         }
                         .buttonStyle(.plain)
+                        .contextMenu {
+                            Button {
+                                editingCard = card
+                            } label: {
+                                Label("Edit", systemImage: "pencil")
+                            }
+                            Button(role: .destructive) {
+                                pendingDelete = card
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal, 20)
@@ -40,6 +55,28 @@ struct CollectionDetailView: View {
         .background(SphirColor.background.ignoresSafeArea())
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(item: $editingCard) { card in
+            EditCardView(card: card)
+                .environmentObject(appStore)
+        }
+        .alert(
+            "Delete card?",
+            isPresented: Binding(
+                get: { pendingDelete != nil },
+                set: { if !$0 { pendingDelete = nil } }
+            ),
+            presenting: pendingDelete
+        ) { card in
+            Button("Delete", role: .destructive) {
+                appStore.deleteCard(id: card.id)
+                pendingDelete = nil
+            }
+            Button("Cancel", role: .cancel) {
+                pendingDelete = nil
+            }
+        } message: { card in
+            Text("“\(card.title)” will be removed. This can't be undone.")
+        }
     }
 
     private var header: some View {

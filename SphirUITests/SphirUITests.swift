@@ -25,6 +25,7 @@ final class SphirUITests: XCTestCase {
     @MainActor
     func testAddCardFlowIncrementsCollectionCount() throws {
         let app = XCUIApplication()
+        app.launchArguments = ["UITEST"]
         app.launch()
 
         // The first mock collection ("Reading List") starts at 12 items.
@@ -82,6 +83,7 @@ final class SphirUITests: XCTestCase {
     @MainActor
     func testCreateCollectionAppearsInGrid() throws {
         let app = XCUIApplication()
+        app.launchArguments = ["UITEST"]
         app.launch()
 
         // The dashboard starts with 4 mock collections.
@@ -118,6 +120,7 @@ final class SphirUITests: XCTestCase {
     @MainActor
     func testCollectionAndCardNavigation() throws {
         let app = XCUIApplication()
+        app.launchArguments = ["UITEST"]
         app.launch()
 
         // Dashboard → open a collection.
@@ -149,8 +152,104 @@ final class SphirUITests: XCTestCase {
     }
 
     @MainActor
+    func testSearchFiltersCollectionsAndCards() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Reading List"].waitForExistence(timeout: 5))
+
+        let search = app.textFields["searchField"]
+        XCTAssertTrue(search.waitForExistence(timeout: 3))
+        search.tap()
+        if !app.keyboards.element.waitForExistence(timeout: 2) {
+            search.tap()
+        }
+        search.typeText("Reading")
+
+        // Matching collection stays; non-matching one is filtered out.
+        XCTAssertTrue(app.staticTexts["Reading List"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.staticTexts["Inspiration"].exists)
+
+        // A seeded card whose title contains the query shows in the results.
+        XCTAssertTrue(
+            app.staticTexts["Reading List: Getting Started"].waitForExistence(timeout: 3),
+            "A matching card should appear in the Cards results."
+        )
+    }
+
+    @MainActor
+    func testDeleteCardViaContextMenu() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST"]
+        app.launch()
+
+        app.staticTexts["Reading List"].tap()
+        XCTAssertTrue(app.staticTexts["Articles and posts saved for later."].waitForExistence(timeout: 3))
+
+        // Reading List seeds 12 cards.
+        XCTAssertTrue(app.staticTexts["12 items"].waitForExistence(timeout: 3))
+
+        let row = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Wishlist Item")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 3))
+        row.press(forDuration: 1.0)
+
+        app.buttons["Delete"].firstMatch.tap()        // context-menu item
+        let confirm = app.alerts.buttons["Delete"]     // confirmation alert
+        XCTAssertTrue(confirm.waitForExistence(timeout: 3))
+        confirm.tap()
+
+        // Deleting one card drops the collection's count.
+        XCTAssertTrue(
+            app.staticTexts["11 items"].waitForExistence(timeout: 3),
+            "Count should drop to 11 after deleting a card."
+        )
+    }
+
+    @MainActor
+    func testEditCardViaContextMenu() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST"]
+        app.launch()
+
+        app.staticTexts["Reading List"].tap()
+        XCTAssertTrue(app.staticTexts["Articles and posts saved for later."].waitForExistence(timeout: 3))
+
+        let row = app.buttons.containing(
+            NSPredicate(format: "label CONTAINS %@", "Key Contact")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 3))
+        row.press(forDuration: 1.0)
+
+        app.buttons["Edit"].firstMatch.tap()
+
+        let titleField = app.textFields["editTitleField"]
+        XCTAssertTrue(titleField.waitForExistence(timeout: 3))
+        titleField.tap()
+        if !app.keyboards.element.waitForExistence(timeout: 2) {
+            titleField.tap()
+        }
+        // Clear the pre-filled title, then set a unique one.
+        if let current = titleField.value as? String, !current.isEmpty {
+            titleField.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count))
+        }
+        let uniqueTitle = "Renamed Card XYZ"
+        titleField.typeText(uniqueTitle)
+
+        app.buttons["editSaveButton"].tap()
+
+        XCTAssertTrue(
+            app.staticTexts[uniqueTitle].waitForExistence(timeout: 3),
+            "Edited title should appear in the card list."
+        )
+    }
+
+    @MainActor
     func testGroupsTabSwitching() throws {
         let app = XCUIApplication()
+        app.launchArguments = ["UITEST"]
         app.launch()
 
         XCTAssertTrue(app.staticTexts["Reading List"].waitForExistence(timeout: 5))
