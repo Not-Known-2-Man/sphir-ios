@@ -21,6 +21,7 @@ struct DashboardView: View {
     @State private var searchText: String = ""
     @State private var showCollectionFlow = false
     @State private var showSettings = false
+    @State private var showOnboarding = OnboardingGate.shouldShow()
     @StateObject private var cardFlow = CardFlowCoordinator()
 
     private let gridColumns = [
@@ -86,6 +87,25 @@ struct DashboardView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
         }
+        // First-launch onboarding.
+        .fullScreenCover(isPresented: $showOnboarding) {
+            OnboardingView {
+                OnboardingGate.complete()
+                showOnboarding = false
+            }
+        }
+        // User-friendly error surface (e.g. storage failures).
+        .alert(
+            "Something went wrong",
+            isPresented: Binding(
+                get: { appStore.errorMessage != nil },
+                set: { if !$0 { appStore.errorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { appStore.errorMessage = nil }
+        } message: {
+            Text(appStore.errorMessage ?? "")
+        }
     }
 
     // MARK: - Sticky Header
@@ -95,6 +115,7 @@ struct DashboardView: View {
             Text("SPHIR")
                 .font(SphirFont.heading(22, weight: .bold))
                 .foregroundColor(SphirColor.textPrimary)
+                .accessibilityAddTraits(.isHeader)
 
             Spacer()
 
@@ -108,6 +129,7 @@ struct DashboardView: View {
                     .font(.system(size: 18))
                     .foregroundColor(SphirColor.textPrimary)
             }
+            .accessibilityLabel("Notifications")
 
             Button {
                 showSettings = true
@@ -122,6 +144,7 @@ struct DashboardView: View {
                     )
             }
             .accessibilityIdentifier("settingsButton")
+            .accessibilityLabel("Settings")
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
@@ -176,6 +199,7 @@ struct DashboardView: View {
         Text("Good morning, Alex")
             .font(SphirFont.heading(20, weight: .bold))
             .foregroundColor(SphirColor.textPrimary)
+            .accessibilityAddTraits(.isHeader)
     }
 
     // MARK: - Search Bar
@@ -266,9 +290,17 @@ struct DashboardView: View {
             if !filteredCollections.isEmpty {
                 collectionsGrid
             } else if isSearching {
-                Text("No matching collections")
-                    .font(SphirFont.body(13))
-                    .foregroundColor(SphirColor.mutedText)
+                EmptyStateView(
+                    icon: "magnifyingglass",
+                    title: "No matching collections",
+                    message: "Try a different search, or check the Cards below."
+                )
+            } else {
+                EmptyStateView(
+                    icon: "square.stack.3d.up",
+                    title: "No collections yet",
+                    message: "Tap “+ Collection” to create your first one."
+                )
             }
 
             if isSearching {

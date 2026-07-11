@@ -247,6 +247,24 @@ final class SphirUITests: XCTestCase {
     }
 
     @MainActor
+    func testOnboardingShowsThenDismisses() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST", "SHOW_ONBOARDING"]
+        app.launch()
+
+        XCTAssertTrue(
+            app.staticTexts["Welcome to Sphir"].waitForExistence(timeout: 5),
+            "Onboarding should appear on first launch."
+        )
+        app.buttons["getStartedButton"].tap()
+
+        XCTAssertTrue(
+            app.staticTexts["Good morning, Alex"].waitForExistence(timeout: 3),
+            "Dashboard should appear after Get Started."
+        )
+    }
+
+    @MainActor
     func testDeepLinkOpensCollection() throws {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST"]

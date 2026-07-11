@@ -27,6 +27,14 @@ struct CollectionDetailView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     header
 
+                    if cards.isEmpty {
+                        EmptyStateView(
+                            icon: "tray",
+                            title: "No cards yet",
+                            message: "Add one with “+ Card”, or share a link to Sphir."
+                        )
+                    }
+
                     ForEach(cards) { card in
                         NavigationLink(value: card) {
                             CardRowView(card: card)

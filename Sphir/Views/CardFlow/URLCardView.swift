@@ -17,6 +17,7 @@ struct URLCardView: View {
     @State private var descriptionText: String = ""
     @State private var imageData: Data?
     @State private var isFetching = false
+    @State private var fetchFailed = false
     @State private var showSuccess = false
     @State private var selectedCollectionID: UUID?
 
@@ -97,6 +98,7 @@ struct URLCardView: View {
         let normalized = trimmed.contains("://") ? trimmed : "https://\(trimmed)"
 
         isFetching = true
+        fetchFailed = false
         let metadata = await MetadataService.fetch(urlString: normalized)
         if let fetchedTitle = metadata?.title, !fetchedTitle.isEmpty {
             title = fetchedTitle
@@ -107,6 +109,8 @@ struct URLCardView: View {
         if let fetchedImage = metadata?.imageData {
             imageData = fetchedImage
         }
+        // No usable metadata came back — likely offline or a blocked page.
+        fetchFailed = (metadata?.title == nil && metadata?.imageData == nil && metadata?.description == nil)
         isFetching = false
     }
 
@@ -204,9 +208,15 @@ struct URLCardView: View {
             .background(RoundedRectangle(cornerRadius: 12).fill(SphirColor.cardBackground))
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(SphirColor.border, lineWidth: 1))
 
-            Text("Press return to fetch the page title, description, and image.")
-                .font(SphirFont.body(11))
-                .foregroundColor(SphirColor.mutedText)
+            if fetchFailed {
+                Text("Couldn't load link details — check your connection. You can still enter a title and save.")
+                    .font(SphirFont.body(11))
+                    .foregroundColor(SphirColor.taupe)
+            } else {
+                Text("Press return to fetch the page title, description, and image.")
+                    .font(SphirFont.body(11))
+                    .foregroundColor(SphirColor.mutedText)
+            }
         }
     }
 

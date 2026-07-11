@@ -15,6 +15,8 @@ import Combine
 final class AppStore: ObservableObject {
     @Published private(set) var collections: [Collection] = []
     @Published private(set) var cards: [Card] = []
+    /// Set when an operation fails; views present it as an alert.
+    @Published var errorMessage: String?
 
     private let context: NSManagedObjectContext
 
@@ -248,6 +250,7 @@ final class AppStore: ObservableObject {
             try context.save()
         } catch {
             print("Sphir CoreData save failed: \(error)")
+            errorMessage = "Couldn't save your changes. Please try again."
         }
     }
 
