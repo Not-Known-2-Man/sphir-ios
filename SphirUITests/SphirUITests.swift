@@ -247,6 +247,22 @@ final class SphirUITests: XCTestCase {
     }
 
     @MainActor
+    func testDeepLinkOpensCollection() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST"]
+        // Reading List has a stable seeded id.
+        app.launchEnvironment = ["DEEPLINK": "sphir://collection/00000000-0000-0000-0000-000000000001"]
+        app.launch()
+
+        // The collection detail should be pushed automatically.
+        XCTAssertTrue(
+            app.staticTexts["Articles and posts saved for later."].waitForExistence(timeout: 5),
+            "Deep link should open the Reading List collection detail."
+        )
+        XCTAssertTrue(app.buttons["collectionDetailBackButton"].exists)
+    }
+
+    @MainActor
     func testGroupsTabSwitching() throws {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST"]

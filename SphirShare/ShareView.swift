@@ -30,7 +30,12 @@ struct SharePayload {
 struct ShareView: View {
     let content: SharedContent
     let collections: [SharedCollectionDTO]
-    let onSave: (SharePayload) -> Void
+    /// Enqueues the card and returns its new id (does not close the sheet).
+    let onSave: (SharePayload) -> UUID
+    /// Open the saved card in the app via its deep link, then finish.
+    let onView: (UUID) -> Void
+    /// Close the extension without opening the app.
+    let onDismiss: () -> Void
     let onCancel: () -> Void
 
     @State private var selectedCollectionID: UUID?
@@ -38,6 +43,7 @@ struct ShareView: View {
     @State private var descriptionText: String = ""
     @State private var imageData: Data?
     @State private var isLoadingMetadata = false
+    @State private var savedCardID: UUID?
 
     private var selectedCollection: SharedCollectionDTO? {
         collections.first { $0.id == selectedCollectionID }
@@ -71,6 +77,13 @@ struct ShareView: View {
             .background(RoundedRectangle(cornerRadius: 12).fill(ShareColor.background))
             .padding(.horizontal, 24)
         }
+        .overlay(alignment: .bottom) {
+            if let savedCardID {
+                toast(cardID: savedCardID)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: savedCardID)
         .task {
             if selectedCollectionID == nil {
                 selectedCollectionID = collections.first?.id
@@ -234,18 +247,7 @@ struct ShareView: View {
                     )
             }
 
-            Button {
-                onSave(
-                    SharePayload(
-                        collectionID: selectedCollectionID,
-                        title: title,
-                        description: descriptionText,
-                        urlString: content.urlString,
-                        bodyText: content.text,
-                        imageData: imageData
-                    )
-                )
-            } label: {
+            Button(action: performSave) {
                 Text("Save")
                     .font(ShareFont.body(16, weight: .semibold))
                     .foregroundColor(.white)
@@ -254,5 +256,61 @@ struct ShareView: View {
                     .background(RoundedRectangle(cornerRadius: 22).fill(ShareColor.taupe))
             }
         }
+    }
+
+    private func performSave() {
+        let payload = SharePayload(
+            collectionID: selectedCollectionID,
+            title: title,
+            description: descriptionText,
+            urlString: content.urlString,
+            bodyText: content.text,
+            imageData: imageData
+        )
+        let id = onSave(payload)
+        savedCardID = id
+
+        // Auto-dismiss the toast (and finish) after a few seconds if the
+        // user doesn't tap "View".
+        Task {
+            try? await Task.sleep(nanoseconds: 3_500_000_000)
+            if savedCardID != nil { onDismiss() }
+        }
+    }
+
+    // MARK: - Toast
+
+    private func toast(cardID: UUID) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundColor(ShareColor.taupe)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Card saved")
+                    .font(ShareFont.body(14, weight: .semibold))
+                    .foregroundColor(ShareColor.textPrimary)
+                Text("to \(selectedCollection?.name ?? "Sphir")")
+                    .font(ShareFont.body(12))
+                    .foregroundColor(ShareColor.mutedText)
+            }
+            Spacer()
+            Button {
+                onView(cardID)
+            } label: {
+                Text("View")
+                    .font(ShareFont.body(14, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Capsule().fill(ShareColor.taupe))
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(ShareColor.cardBackground)
+                .shadow(color: Color.black.opacity(0.15), radius: 12, y: 4)
+        )
+        .padding(.horizontal, 24)
+        .padding(.bottom, 24)
     }
 }

@@ -59,11 +59,17 @@ struct Collection: Identifiable, Hashable {
 }
 
 extension Collection {
+    /// Stable IDs for the seeded collections so deep links are reproducible
+    /// and match the share extension's fallback collections.
+    private static func fixedID(_ n: Int) -> UUID {
+        UUID(uuidString: "00000000-0000-0000-0000-00000000000\(n)")!
+    }
+
     /// Mock collections used to populate the dashboard until a backend exists.
     static let mockCollections: [Collection] = [
-        Collection(name: "Reading List", description: "Articles and posts saved for later.", cardCount: 12),
-        Collection(name: "Inspiration", description: "Ideas, references, and things that spark joy.", cardCount: 34),
-        Collection(name: "Work Assets", description: "Docs and resources for current projects.", cardCount: 8, privacy: .connections),
-        Collection(name: "Mood Board", description: "Visual direction and aesthetic notes.", cardCount: 21, privacy: .public)
+        Collection(id: fixedID(1), name: "Reading List", description: "Articles and posts saved for later.", cardCount: 12),
+        Collection(id: fixedID(2), name: "Inspiration", description: "Ideas, references, and things that spark joy.", cardCount: 34),
+        Collection(id: fixedID(3), name: "Work Assets", description: "Docs and resources for current projects.", cardCount: 8, privacy: .connections),
+        Collection(id: fixedID(4), name: "Mood Board", description: "Visual direction and aesthetic notes.", cardCount: 21, privacy: .public)
     ]
 }

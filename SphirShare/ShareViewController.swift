@@ -37,7 +37,13 @@ final class ShareViewController: UIViewController {
             content: content,
             collections: collections,
             onSave: { [weak self] payload in
-                self?.save(payload)
+                self?.save(payload) ?? UUID()
+            },
+            onView: { [weak self] cardID in
+                self?.openCard(cardID)
+            },
+            onDismiss: { [weak self] in
+                self?.finish()
             },
             onCancel: { [weak self] in
                 self?.cancel()
@@ -113,10 +119,12 @@ final class ShareViewController: UIViewController {
 
     // MARK: - Actions
 
-    private func save(_ payload: SharePayload) {
+    /// Enqueue the card to the App Group and return its id (does not finish).
+    private func save(_ payload: SharePayload) -> UUID {
         let isLink = !(payload.urlString ?? "").isEmpty
+        let id = UUID()
         let card = SharedCardDTO(
-            id: UUID(),
+            id: id,
             title: payload.title,
             description: payload.description,
             urlString: payload.urlString ?? "",
@@ -127,6 +135,21 @@ final class ShareViewController: UIViewController {
             createdAt: Date()
         )
         SharedInbox.enqueueCard(card)
+        return id
+    }
+
+    /// Open the saved card in the app via its deep link, then finish.
+    private func openCard(_ id: UUID) {
+        if let url = URL(string: "sphir://card/\(id.uuidString)") {
+            extensionContext?.open(url) { [weak self] _ in
+                self?.finish()
+            }
+        } else {
+            finish()
+        }
+    }
+
+    private func finish() {
         extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
     }
 

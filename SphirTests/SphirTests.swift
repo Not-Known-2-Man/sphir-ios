@@ -8,6 +8,7 @@
 import Testing
 import Foundation
 import CoreData
+import SwiftUI
 @testable import Sphir
 
 struct SphirTests {
@@ -235,6 +236,47 @@ struct SphirTests {
         #expect(reloaded.title == "New Title")
         #expect(reloaded.content == "New content")
         #expect(reloaded.tags == ["a", "b"])
+    }
+
+    /// The deep-link parser handles custom-scheme and universal-link forms.
+    @Test func parsesDeepLinks() async throws {
+        let cardID = UUID()
+        let collectionID = UUID()
+
+        #expect(DeepLink(url: URL(string: "sphir://card/\(cardID.uuidString)")!) == .card(cardID))
+        #expect(DeepLink(url: URL(string: "sphir://collection/\(collectionID.uuidString)")!) == .collection(collectionID))
+        #expect(DeepLink(url: URL(string: "https://sphir.io/card/\(cardID.uuidString)")!) == .card(cardID))
+        #expect(DeepLink(url: URL(string: "https://sphir.io/collection/\(collectionID.uuidString)")!) == .collection(collectionID))
+
+        // Rejected forms.
+        #expect(DeepLink(url: URL(string: "sphir://card/not-a-uuid")!) == nil)
+        #expect(DeepLink(url: URL(string: "https://example.com/card/\(cardID.uuidString)")!) == nil)
+        #expect(DeepLink(url: URL(string: "sphir://unknown/\(cardID.uuidString)")!) == nil)
+    }
+
+    /// The router resolves a card deep link into a collection + card path.
+    @MainActor
+    @Test func routerRoutesCardDeepLink() async throws {
+        let store = makeStore()
+        let card = try #require(store.cards.first)
+        let router = NavigationRouter()
+
+        router.handle(URL(string: "sphir://card/\(card.id.uuidString)")!, store: store)
+
+        // collection (owning) + card
+        #expect(router.path.count == 2)
+    }
+
+    /// The router resolves a collection deep link into a single-item path.
+    @MainActor
+    @Test func routerRoutesCollectionDeepLink() async throws {
+        let store = makeStore()
+        let collection = try #require(store.collections.first)
+        let router = NavigationRouter()
+
+        router.handle(URL(string: "sphir://collection/\(collection.id.uuidString)")!, store: store)
+
+        #expect(router.path.count == 1)
     }
 
     /// Deleting a card removes it and decrements the collection count.

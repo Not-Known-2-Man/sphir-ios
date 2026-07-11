@@ -16,6 +16,7 @@ struct DashboardView: View {
     }
 
     @EnvironmentObject private var appStore: AppStore
+    @EnvironmentObject private var router: NavigationRouter
     @State private var selectedTab: DashboardTab = .collections
     @State private var searchText: String = ""
     @State private var showCollectionFlow = false
@@ -28,7 +29,7 @@ struct DashboardView: View {
     ]
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $router.path) {
             VStack(spacing: 0) {
                 header
 
@@ -61,6 +62,13 @@ struct DashboardView: View {
             }
             .navigationDestination(for: Card.self) { card in
                 CardDetailView(card: card)
+            }
+            // Test hook: simulate an incoming deep link at launch.
+            .onAppear {
+                if let deeplink = ProcessInfo.processInfo.environment["DEEPLINK"],
+                   let url = URL(string: deeplink) {
+                    router.handle(url, store: appStore)
+                }
             }
         }
         // Step 1 of the "+Card" flow.
@@ -306,4 +314,5 @@ struct DashboardView: View {
 #Preview {
     DashboardView()
         .environmentObject(AppStore())
+        .environmentObject(NavigationRouter())
 }
