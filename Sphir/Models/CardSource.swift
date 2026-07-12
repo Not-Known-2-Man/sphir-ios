@@ -32,7 +32,7 @@ enum CardSource: String, CaseIterable, Identifiable {
         case .photos:      return "From Photos"
         case .camera:      return "Take Photo"
         case .url:         return "Paste URL"
-        case .screenshots: return "Import from Screenshots"
+        case .screenshots: return "From Screenshots or Photos"
         }
     }
 
@@ -41,7 +41,7 @@ enum CardSource: String, CaseIterable, Identifiable {
         case .photos:      return "Choose from your library"
         case .camera:      return "Use your camera"
         case .url:         return "Share a link"
-        case .screenshots: return "Capture from your device"
+        case .screenshots: return "Extract text with OCR"
         }
     }
 }

@@ -52,6 +52,9 @@ final class SphirUITests: XCTestCase {
         let titleField = app.textFields["cardTitleField"]
         XCTAssertTrue(titleField.waitForExistence(timeout: 3), "Card form should appear.")
         titleField.tap()
+        if !app.keyboards.element.waitForExistence(timeout: 2) {
+            titleField.tap()
+        }
         titleField.typeText("My Test Card")
 
         // Use the nav-bar Done (stays above the keyboard).
@@ -59,7 +62,7 @@ final class SphirUITests: XCTestCase {
 
         // Step 4: Success overlay.
         XCTAssertTrue(
-            app.staticTexts["Card Saved!"].waitForExistence(timeout: 3),
+            app.staticTexts["Card Saved!"].waitForExistence(timeout: 5),
             "Success screen should appear after saving."
         )
         // Tap "Back to Dashboard" if it's still up; otherwise the 3s
