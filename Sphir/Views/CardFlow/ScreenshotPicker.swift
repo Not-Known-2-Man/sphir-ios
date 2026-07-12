@@ -2,8 +2,11 @@
 //  ScreenshotPicker.swift
 //  Sphir
 //
-//  PHPickerViewController wrapper filtered to the Screenshots album.
-//  PHPicker runs out-of-process, so no photo-library permission is required.
+//  PHPickerViewController wrapper for importing a screenshot to OCR.
+//  Shows all images (not just the Screenshots album) so it works on the
+//  Simulator and on devices without a Screenshots album; OCR then runs on
+//  whatever image is chosen. PHPicker runs out-of-process, so no photo-library
+//  permission is required.
 //
 
 import SwiftUI
@@ -15,7 +18,7 @@ struct ScreenshotPicker: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> PHPickerViewController {
         var configuration = PHPickerConfiguration()
-        configuration.filter = .screenshots
+        configuration.filter = .images   // all photos, screenshots included
         configuration.selectionLimit = 1
         configuration.preferredAssetRepresentationMode = .current
 

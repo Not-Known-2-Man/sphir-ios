@@ -9,6 +9,7 @@ import Testing
 import Foundation
 import CoreData
 import SwiftUI
+import UIKit
 @testable import Sphir
 
 struct SphirTests {
@@ -236,6 +237,31 @@ struct SphirTests {
         #expect(reloaded.title == "New Title")
         #expect(reloaded.content == "New content")
         #expect(reloaded.tags == ["a", "b"])
+    }
+
+    /// OCR extracts text from an image (works on the Simulator, so the
+    /// screenshot flow is testable without a camera or real screenshots).
+    @MainActor
+    @Test func ocrExtractsTextFromImage() async throws {
+        let image = Self.renderTextImage("HELLO SPHIR")
+        let text = await OCRService.recognizeText(in: image)
+        let upper = text.uppercased()
+        #expect(upper.contains("HELLO") || upper.contains("SPHIR"))
+    }
+
+    /// Render a plain image containing the given text for OCR testing.
+    private static func renderTextImage(_ string: String) -> UIImage {
+        let size = CGSize(width: 600, height: 200)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { ctx in
+            UIColor.white.setFill()
+            ctx.fill(CGRect(origin: .zero, size: size))
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.boldSystemFont(ofSize: 64),
+                .foregroundColor: UIColor.black
+            ]
+            (string as NSString).draw(at: CGPoint(x: 40, y: 60), withAttributes: attributes)
+        }
     }
 
     /// The deep-link parser handles custom-scheme and universal-link forms.

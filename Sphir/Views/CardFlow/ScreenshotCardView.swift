@@ -17,6 +17,7 @@ struct ScreenshotCardView: View {
     @State private var title: String = ""
     @State private var content: String = ""
     @State private var isProcessing = false
+    @State private var noTextFound = false
     @State private var showPicker = false
     @State private var showSuccess = false
     @State private var selectedCollectionID: UUID?
@@ -45,6 +46,11 @@ struct ScreenshotCardView: View {
                         if isProcessing {
                             extracting
                         } else if image != nil {
+                            if noTextFound {
+                                Text("No text found in this image. You can still add a title and save it.")
+                                    .font(SphirFont.body(12))
+                                    .foregroundColor(SphirColor.mutedText)
+                            }
                             formField(label: "Title") {
                                 TextField("Card title", text: $title)
                                     .textFieldStyle(.plain)
@@ -112,6 +118,7 @@ struct ScreenshotCardView: View {
             let text = await OCRService.recognizeText(in: picked)
             content = text
             title = firstLine(of: text)
+            noTextFound = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             isProcessing = false
         }
     }
