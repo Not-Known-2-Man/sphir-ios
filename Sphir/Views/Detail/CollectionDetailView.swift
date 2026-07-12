@@ -92,6 +92,7 @@ struct CollectionDetailView: View {
             Text(collection.name)
                 .font(SphirFont.heading(22, weight: .bold))
                 .foregroundColor(SphirColor.textPrimary)
+                .accessibilityAddTraits(.isHeader)
 
             if !collection.description.isEmpty {
                 Text(collection.description)
@@ -106,6 +107,8 @@ struct CollectionDetailView: View {
                     .font(SphirFont.body(12))
                     .foregroundColor(SphirColor.mutedText)
             }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(collection.privacy.label), \(cards.count) items")
         }
         .padding(.bottom, 4)
     }
@@ -152,6 +155,9 @@ struct CardRowView: View {
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 12).fill(SphirColor.cardBackground))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(SphirColor.border, lineWidth: 1))
+        // Combine (not .ignore) so VoiceOver reads one element while the child
+        // text stays queryable by UI tests.
+        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder

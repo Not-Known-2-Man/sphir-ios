@@ -24,6 +24,7 @@ struct CardDetailView: View {
                     Text(card.title)
                         .font(SphirFont.heading(24, weight: .bold))
                         .foregroundColor(SphirColor.textPrimary)
+                        .accessibilityAddTraits(.isHeader)
 
                     coverImage
 
@@ -69,6 +70,8 @@ struct CardDetailView: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(Capsule().fill(card.syncStatus.color.opacity(0.12)))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Sync status: \(card.syncStatus.label)")
     }
 
     @ViewBuilder
@@ -82,6 +85,7 @@ struct CardDetailView: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: 12).stroke(SphirColor.border, lineWidth: 1)
                 )
+                .accessibilityLabel("Card image")
         } else {
             RoundedRectangle(cornerRadius: 12)
                 .fill(SphirColor.cardBackgroundAlt)
@@ -95,6 +99,7 @@ struct CardDetailView: View {
                     RoundedRectangle(cornerRadius: 12)
                         .stroke(SphirColor.border, lineWidth: 1)
                 )
+                .accessibilityHidden(true)
         }
     }
 
@@ -115,12 +120,16 @@ struct CardDetailView: View {
                 }
             }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Tags: \(card.tags.joined(separator: ", "))")
     }
 
     private var metadata: some View {
         VStack(alignment: .leading, spacing: 8) {
             Label(card.sourceApp.label, systemImage: card.sourceApp.iconName)
+                .accessibilityLabel("Source: \(card.sourceApp.label)")
             Label(DetailDateFormatter.string(from: card.createdAt), systemImage: "calendar")
+                .accessibilityLabel("Created \(DetailDateFormatter.string(from: card.createdAt))")
         }
         .font(SphirFont.body(13))
         .foregroundColor(SphirColor.mutedText)
@@ -152,6 +161,7 @@ struct DetailTopBar: View {
             Text(title)
                 .font(SphirFont.body(17, weight: .semibold))
                 .foregroundColor(SphirColor.textPrimary)
+                .accessibilityAddTraits(.isHeader)
 
             HStack {
                 Button(action: onBack) {
@@ -163,6 +173,8 @@ struct DetailTopBar: View {
                     .foregroundColor(SphirColor.taupe)
                 }
                 .accessibilityIdentifier(backIdentifier)
+                .accessibilityLabel("Back")
+                .accessibilityHint("Returns to the previous screen")
                 Spacer()
             }
         }

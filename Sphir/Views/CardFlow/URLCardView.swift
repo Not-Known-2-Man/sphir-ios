@@ -20,6 +20,7 @@ struct URLCardView: View {
     @State private var fetchFailed = false
     @State private var showSuccess = false
     @State private var selectedCollectionID: UUID?
+    @State private var fetchTask: Task<Void, Never>?
 
     private var selectedCollection: Collection? {
         appStore.collections.first { $0.id == selectedCollectionID }
@@ -87,10 +88,32 @@ struct URLCardView: View {
             if selectedCollectionID == nil {
                 selectedCollectionID = appStore.collections.first?.id
             }
+            // If the URL is pre-filled (e.g. pasted before appearing), fetch.
+            if !urlText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                scheduleFetch(urlText)
+            }
         }
     }
 
     // MARK: - Actions
+
+    /// Debounced fetch as the user types or pastes.
+    private func scheduleFetch(_ value: String) {
+        fetchTask?.cancel()
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 4, trimmed.contains(".") else { return }
+        fetchTask = Task {
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            if Task.isCancelled { return }
+            await fetchMetadata()
+        }
+    }
+
+    /// Fetch immediately (e.g. on keyboard "Go").
+    private func fetchNow() {
+        fetchTask?.cancel()
+        fetchTask = Task { await fetchMetadata() }
+    }
 
     private func fetchMetadata() async {
         let trimmed = urlText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -194,13 +217,19 @@ struct URLCardView: View {
                     .font(SphirFont.body(15))
                     .foregroundColor(SphirColor.textPrimary)
                     .keyboardType(.URL)
-                    .autocapitalization(.none)
+                    .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    .submitLabel(.go)
                     .accessibilityIdentifier("cardURLField")
-                    .onSubmit { Task { await fetchMetadata() } }
+                    .onSubmit { fetchNow() }
+                    .onChange(of: urlText) { _, newValue in
+                        scheduleFetch(newValue)
+                    }
 
                 if isFetching {
-                    ProgressView().tint(SphirColor.taupe)
+                    ProgressView()
+                        .tint(SphirColor.taupe)
+                        .accessibilityLabel("Fetching link details")
                 }
             }
             .padding(.horizontal, 14)
@@ -209,11 +238,11 @@ struct URLCardView: View {
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(SphirColor.border, lineWidth: 1))
 
             if fetchFailed {
-                Text("Couldn't load link details — check your connection. You can still enter a title and save.")
+                Text("Could not fetch page info. Check your connection.")
                     .font(SphirFont.body(11))
                     .foregroundColor(SphirColor.taupe)
             } else {
-                Text("Press return to fetch the page title, description, and image.")
+                Text("We'll fetch the page title, description, and image automatically.")
                     .font(SphirFont.body(11))
                     .foregroundColor(SphirColor.mutedText)
             }

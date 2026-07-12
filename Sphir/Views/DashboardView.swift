@@ -21,6 +21,7 @@ struct DashboardView: View {
     @State private var searchText: String = ""
     @State private var showCollectionFlow = false
     @State private var showSettings = false
+    @State private var showNotifications = false
     @State private var showOnboarding = OnboardingGate.shouldShow()
     @StateObject private var cardFlow = CardFlowCoordinator()
 
@@ -87,6 +88,10 @@ struct DashboardView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
         }
+        // Notifications.
+        .sheet(isPresented: $showNotifications) {
+            NotificationsView()
+        }
         // First-launch onboarding.
         .fullScreenCover(isPresented: $showOnboarding) {
             OnboardingView {
@@ -123,12 +128,13 @@ struct DashboardView: View {
             addCollectionButton
 
             Button {
-                print("Notifications tapped")
+                showNotifications = true
             } label: {
                 Image(systemName: "bell")
                     .font(.system(size: 18))
                     .foregroundColor(SphirColor.textPrimary)
             }
+            .accessibilityIdentifier("notificationsButton")
             .accessibilityLabel("Notifications")
 
             Button {

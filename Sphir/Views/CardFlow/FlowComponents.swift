@@ -17,6 +17,7 @@ struct FlowModalHeader: View {
             Text(title)
                 .font(SphirFont.heading(18, weight: .bold))
                 .foregroundColor(SphirColor.textPrimary)
+                .accessibilityAddTraits(.isHeader)
 
             HStack {
                 Spacer()
@@ -25,6 +26,7 @@ struct FlowModalHeader: View {
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(SphirColor.mutedText)
                 }
+                .accessibilityLabel("Close")
             }
         }
         .padding(.horizontal, 20)

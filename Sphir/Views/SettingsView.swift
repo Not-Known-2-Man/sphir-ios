@@ -66,6 +66,8 @@ struct SettingsView: View {
         }
         .padding(16)
         .background(card)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Alex, personal workspace")
     }
 
     // MARK: - Sync status
@@ -90,9 +92,12 @@ struct SettingsView: View {
             Image(systemName: "checkmark.icloud")
                 .font(.system(size: 18))
                 .foregroundColor(SphirColor.success)
+                .accessibilityHidden(true)
         }
         .padding(16)
         .background(card)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Sync status: Synced. All changes saved locally.")
     }
 
     // MARK: - About
@@ -102,6 +107,7 @@ struct SettingsView: View {
             Text("About Sphir")
                 .font(SphirFont.heading(18, weight: .bold))
                 .foregroundColor(SphirColor.textPrimary)
+                .accessibilityAddTraits(.isHeader)
 
             Text("Sphir is your calm space to capture and collect what matters — articles, media, links, photos, and screenshots — organized into private collections and shared groups.")
                 .font(SphirFont.body(14))

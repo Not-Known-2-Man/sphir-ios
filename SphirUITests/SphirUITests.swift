@@ -265,6 +265,47 @@ final class SphirUITests: XCTestCase {
     }
 
     @MainActor
+    func testNotificationsEmptyState() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST"]
+        app.launch()
+
+        app.buttons["notificationsButton"].tap()
+        XCTAssertTrue(
+            app.staticTexts["No new notifications"].waitForExistence(timeout: 3),
+            "Bell should open the notifications empty state."
+        )
+    }
+
+    /// Requires network in the simulator. Types a URL and waits for the
+    /// fetched title to auto-populate.
+    @MainActor
+    func testPasteURLFetchesMetadata() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST"]
+        app.launch()
+
+        app.buttons["addCardButton"].tap()
+        app.buttons["cardType_text"].tap()
+        app.buttons["cardSource_url"].tap()
+
+        let urlField = app.textFields["cardURLField"]
+        XCTAssertTrue(urlField.waitForExistence(timeout: 3))
+        urlField.tap()
+        if !app.keyboards.element.waitForExistence(timeout: 2) {
+            urlField.tap()
+        }
+        urlField.typeText("https://apple.com\n")
+
+        // The title field's value should become "Apple" once metadata loads.
+        let titleField = app.textFields["cardTitleField"]
+        XCTAssertTrue(titleField.waitForExistence(timeout: 3))
+        let populated = NSPredicate(format: "value == %@", "Apple")
+        expectation(for: populated, evaluatedWith: titleField)
+        waitForExpectations(timeout: 20)
+    }
+
+    @MainActor
     func testDeepLinkOpensCollection() throws {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST"]
