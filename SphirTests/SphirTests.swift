@@ -251,7 +251,10 @@ struct SphirTests {
 
     /// Render a plain image containing the given text for OCR testing.
     private static func renderTextImage(_ string: String) -> UIImage {
-        let size = CGSize(width: 600, height: 200)
+        renderTextImage(string, at: CGPoint(x: 40, y: 60), size: CGSize(width: 600, height: 200))
+    }
+
+    private static func renderTextImage(_ string: String, at point: CGPoint, size: CGSize) -> UIImage {
         let renderer = UIGraphicsImageRenderer(size: size)
         return renderer.image { ctx in
             UIColor.white.setFill()
@@ -260,8 +263,30 @@ struct SphirTests {
                 .font: UIFont.boldSystemFont(ofSize: 64),
                 .foregroundColor: UIColor.black
             ]
-            (string as NSString).draw(at: CGPoint(x: 40, y: 60), withAttributes: attributes)
+            (string as NSString).draw(at: point, withAttributes: attributes)
         }
+    }
+
+    /// Cropping produces the expected pixel region, and OCR run on the crop
+    /// only sees text inside the selected area.
+    @MainActor
+    @Test func cropLimitsOCRToSelectedRegion() async throws {
+        // Text drawn only in the bottom half of a 600×400 image.
+        let image = Self.renderTextImage("REGION", at: CGPoint(x: 40, y: 300),
+                                         size: CGSize(width: 600, height: 400))
+
+        let bottom = image.cropped(toNormalized: CGRect(x: 0, y: 0.5, width: 1, height: 0.5))
+        let top = image.cropped(toNormalized: CGRect(x: 0, y: 0, width: 1, height: 0.5))
+
+        // Crop geometry in points (scale-independent; allow ±1pt rounding).
+        #expect(abs(bottom.size.width - 600) <= 1)
+        #expect(abs(bottom.size.height - 200) <= 1)
+
+        let bottomText = await OCRService.recognizeText(in: bottom)
+        let topText = await OCRService.recognizeText(in: top)
+
+        #expect(bottomText.uppercased().contains("REGION"))
+        #expect(!topText.uppercased().contains("REGION"))
     }
 
     /// The deep-link parser handles custom-scheme and universal-link forms.

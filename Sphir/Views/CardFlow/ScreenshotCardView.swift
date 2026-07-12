@@ -14,6 +14,9 @@ struct ScreenshotCardView: View {
 
     @State private var image: UIImage?
     @State private var imageData: Data?
+    @State private var pickedImage: UIImage?           // full image, awaiting crop
+    @State private var isCropping = false
+    @State private var normalizedRect = CGRect(x: 0, y: 0, width: 1, height: 1)
     @State private var title: String = ""
     @State private var content: String = ""
     @State private var isProcessing = false
@@ -38,37 +41,41 @@ struct ScreenshotCardView: View {
             VStack(spacing: 0) {
                 navBar
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        syncStrip
-                        imagePreview
+                if isCropping, let pickedImage {
+                    croppingArea(pickedImage)
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 20) {
+                            syncStrip
+                            imagePreview
 
-                        if isProcessing {
-                            extracting
-                        } else if image != nil {
-                            if noTextFound {
-                                Text("No text found in this image. You can still add a title and save it.")
-                                    .font(SphirFont.body(12))
-                                    .foregroundColor(SphirColor.mutedText)
+                            if isProcessing {
+                                extracting
+                            } else if image != nil {
+                                if noTextFound {
+                                    Text("No text found in this image. You can still add a title and save it.")
+                                        .font(SphirFont.body(12))
+                                        .foregroundColor(SphirColor.mutedText)
+                                }
+                                formField(label: "Title") {
+                                    TextField("Card title", text: $title)
+                                        .textFieldStyle(.plain)
+                                }
+                                formField(label: "Extracted Text") {
+                                    TextField("Extracted text will appear here…", text: $content, axis: .vertical)
+                                        .textFieldStyle(.plain)
+                                        .lineLimit(4...12)
+                                }
+                                collectionPicker
                             }
-                            formField(label: "Title") {
-                                TextField("Card title", text: $title)
-                                    .textFieldStyle(.plain)
-                            }
-                            formField(label: "Extracted Text") {
-                                TextField("Extracted text will appear here…", text: $content, axis: .vertical)
-                                    .textFieldStyle(.plain)
-                                    .lineLimit(4...12)
-                            }
-                            collectionPicker
                         }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 16)
+                        .padding(.bottom, 24)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 16)
-                    .padding(.bottom, 24)
-                }
 
-                doneButton
+                    doneButton
+                }
             }
         }
         .overlay {
@@ -94,7 +101,7 @@ struct ScreenshotCardView: View {
                     showPicker = false
                     // Backed out without choosing anything → return to the
                     // source list (dismiss just this cover).
-                    if image == nil { flow.showScreenshotForm = false }
+                    if image == nil && pickedImage == nil { flow.showScreenshotForm = false }
                 }
             )
             .ignoresSafeArea()
@@ -111,11 +118,31 @@ struct ScreenshotCardView: View {
 
     private func handlePick(_ picked: UIImage) {
         showPicker = false
-        image = picked
-        imageData = downscaledJPEG(picked)
+        // Normalize orientation so crop coordinates map correctly, then let
+        // the user select a region before OCR.
+        pickedImage = picked.normalizedUp()
+        isCropping = true
+    }
+
+    /// Crop to the user's selection, then OCR only that region.
+    private func extractSelection() {
+        guard let pickedImage else { return }
+        finish(with: pickedImage.cropped(toNormalized: normalizedRect))
+    }
+
+    /// Skip cropping and use the whole image.
+    private func useWholeImage() {
+        guard let pickedImage else { return }
+        finish(with: pickedImage)
+    }
+
+    private func finish(with img: UIImage) {
+        image = img
+        imageData = downscaledJPEG(img)
+        isCropping = false
         isProcessing = true
         Task {
-            let text = await OCRService.recognizeText(in: picked)
+            let text = await OCRService.recognizeText(in: img)
             content = text
             title = firstLine(of: text)
             noTextFound = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -218,6 +245,49 @@ struct ScreenshotCardView: View {
                         .foregroundColor(SphirColor.lightTaupe)
                 )
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(SphirColor.border, lineWidth: 1))
+        }
+    }
+
+    private func croppingArea(_ image: UIImage) -> some View {
+        VStack(spacing: 16) {
+            Text("Drag the handles to select the area to extract.")
+                .font(SphirFont.body(13))
+                .foregroundColor(SphirColor.mutedText)
+                .multilineTextAlignment(.center)
+                .padding(.top, 12)
+                .padding(.horizontal, 20)
+
+            ImageCropView(image: image, normalizedRect: $normalizedRect)
+                .padding(.horizontal, 16)
+
+            HStack(spacing: 12) {
+                Button(action: useWholeImage) {
+                    Text("Use Whole Image")
+                        .font(SphirFont.body(15, weight: .semibold))
+                        .foregroundColor(SphirColor.taupe)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(
+                            RoundedRectangle(cornerRadius: 22)
+                                .fill(SphirColor.cardBackground)
+                                .overlay(RoundedRectangle(cornerRadius: 22).stroke(SphirColor.taupe, lineWidth: 1))
+                        )
+                }
+                .buttonStyle(.plain)
+
+                Button(action: extractSelection) {
+                    Text("Extract This")
+                        .font(SphirFont.body(15, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(RoundedRectangle(cornerRadius: 22).fill(SphirColor.taupe))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("extractThisButton")
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 12)
         }
     }
 
