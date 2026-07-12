@@ -308,6 +308,56 @@ final class SphirUITests: XCTestCase {
         waitForExpectations(timeout: 20)
     }
 
+    /// Requires network. Creates a URL card, opens it, and launches the
+    /// in-app reader.
+    @MainActor
+    func testOpenInReaderLoadsPage() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST"]
+        app.launch()
+
+        // Create a card from a URL.
+        app.buttons["addCardButton"].tap()
+        app.buttons["cardType_text"].tap()
+        app.buttons["cardSource_url"].tap()
+
+        let urlField = app.textFields["cardURLField"]
+        XCTAssertTrue(urlField.waitForExistence(timeout: 3))
+        urlField.tap()
+        if !app.keyboards.element.waitForExistence(timeout: 2) { urlField.tap() }
+        urlField.typeText("https://apple.com\n")
+
+        // Confirm metadata fetched, then save.
+        let titleField = app.textFields["cardTitleField"]
+        XCTAssertTrue(titleField.waitForExistence(timeout: 3))
+        expectation(for: NSPredicate(format: "value == %@", "Apple"), evaluatedWith: titleField)
+        waitForExpectations(timeout: 20)
+        app.buttons["navDoneButton"].tap()
+
+        // Return to the dashboard.
+        let back = app.buttons["backToDashboardButton"]
+        if back.waitForExistence(timeout: 2) { back.tap() }
+
+        // Open the collection, then the new card.
+        let readingList = app.staticTexts["Reading List"]
+        XCTAssertTrue(readingList.waitForExistence(timeout: 5))
+        readingList.tap()
+
+        let appleCard = app.staticTexts["Apple"]
+        XCTAssertTrue(appleCard.waitForExistence(timeout: 5))
+        appleCard.tap()
+
+        // Open in Reader → WKWebView reader appears.
+        let openReader = app.buttons["openInReaderButton"]
+        XCTAssertTrue(openReader.waitForExistence(timeout: 3), "Open in Reader button should show for URL cards.")
+        openReader.tap()
+
+        XCTAssertTrue(
+            app.buttons["readerBackButton"].waitForExistence(timeout: 5),
+            "The in-app reader should open."
+        )
+    }
+
     @MainActor
     func testDeepLinkOpensCollection() throws {
         let app = XCUIApplication()

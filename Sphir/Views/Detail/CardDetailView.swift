@@ -12,6 +12,16 @@ struct CardDetailView: View {
     let card: Card
 
     @Environment(\.dismiss) private var dismiss
+    @State private var showReader = false
+
+    /// The card's web URL, if its content is an http(s) link.
+    private var webURL: URL? {
+        let trimmed = card.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: trimmed),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https" else { return nil }
+        return url
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -27,6 +37,10 @@ struct CardDetailView: View {
                         .accessibilityAddTraits(.isHeader)
 
                     coverImage
+
+                    if let webURL {
+                        openInReaderButton(url: webURL)
+                    }
 
                     if !card.description.isEmpty {
                         Text(card.description)
@@ -57,6 +71,30 @@ struct CardDetailView: View {
         .background(SphirColor.background.ignoresSafeArea())
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
+        .fullScreenCover(isPresented: $showReader) {
+            if let webURL {
+                WebReaderView(url: webURL, fallbackTitle: card.title)
+            }
+        }
+    }
+
+    private func openInReaderButton(url: URL) -> some View {
+        Button {
+            showReader = true
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "safari")
+                Text("Open in Reader")
+            }
+            .font(SphirFont.body(16, weight: .semibold))
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(RoundedRectangle(cornerRadius: 22).fill(SphirColor.taupe))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("openInReaderButton")
+        .accessibilityHint("Opens the linked page inside Sphir")
     }
 
     private var syncBadge: some View {
