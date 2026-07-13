@@ -318,8 +318,12 @@ final class SphirUITests: XCTestCase {
 
         // Create a card from a URL.
         app.buttons["addCardButton"].tap()
-        app.buttons["cardType_text"].tap()
-        app.buttons["cardSource_url"].tap()
+        let textType = app.buttons["cardType_text"]
+        XCTAssertTrue(textType.waitForExistence(timeout: 3))
+        textType.tap()
+        let urlSource = app.buttons["cardSource_url"]
+        XCTAssertTrue(urlSource.waitForExistence(timeout: 3))
+        urlSource.tap()
 
         let urlField = app.textFields["cardURLField"]
         XCTAssertTrue(urlField.waitForExistence(timeout: 3))
@@ -334,16 +338,15 @@ final class SphirUITests: XCTestCase {
         waitForExpectations(timeout: 20)
         app.buttons["navDoneButton"].tap()
 
-        // Return to the dashboard.
-        let back = app.buttons["backToDashboardButton"]
-        if back.waitForExistence(timeout: 2) { back.tap() }
-
-        // Open the collection, then the new card.
-        let readingList = app.staticTexts["Reading List"]
-        XCTAssertTrue(readingList.waitForExistence(timeout: 5))
+        // The success screen auto-dismisses back to the dashboard. Open the
+        // Reading List collection card (its label begins with "Reading List").
+        let readingList = app.buttons
+            .matching(NSPredicate(format: "label BEGINSWITH %@", "Reading List"))
+            .firstMatch
+        XCTAssertTrue(readingList.waitForExistence(timeout: 8))
         readingList.tap()
 
-        let appleCard = app.staticTexts["Apple"]
+        let appleCard = app.staticTexts["Apple"].firstMatch
         XCTAssertTrue(appleCard.waitForExistence(timeout: 5))
         appleCard.tap()
 

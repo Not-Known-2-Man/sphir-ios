@@ -14,13 +14,11 @@ struct CardDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showReader = false
 
-    /// The card's web URL, if its content is an http(s) link.
+    /// The card's web URL, checking every field that might hold one.
+    /// (There is no `metadata.sourceURL` on `Card`; the link lives in
+    /// `content`, with `imageURL` as a secondary source.)
     private var webURL: URL? {
-        let trimmed = card.content.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let url = URL(string: trimmed),
-              let scheme = url.scheme?.lowercased(),
-              scheme == "http" || scheme == "https" else { return nil }
-        return url
+        Self.firstWebURL(in: [card.content, card.imageURL])
     }
 
     var body: some View {
@@ -38,8 +36,10 @@ struct CardDetailView: View {
 
                     coverImage
 
+                    // Reader entry point: below the image, above the description.
                     if let webURL {
-                        openInReaderButton(url: webURL)
+                        openInReaderButton
+                        urlLink(webURL)
                     }
 
                     if !card.description.isEmpty {
@@ -49,7 +49,9 @@ struct CardDetailView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    if !card.content.isEmpty {
+                    // Only show the raw content when it isn't just the URL
+                    // (which is already shown as a link above).
+                    if !card.content.isEmpty, webURL == nil {
                         Text(card.content)
                             .font(SphirFont.body(15))
                             .foregroundColor(SphirColor.textPrimary)
@@ -78,7 +80,7 @@ struct CardDetailView: View {
         }
     }
 
-    private func openInReaderButton(url: URL) -> some View {
+    private var openInReaderButton: some View {
         Button {
             showReader = true
         } label: {
@@ -87,14 +89,55 @@ struct CardDetailView: View {
                 Text("Open in Reader")
             }
             .font(SphirFont.body(16, weight: .semibold))
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(RoundedRectangle(cornerRadius: 22).fill(SphirColor.taupe))
+            .foregroundColor(.white)                        // #ffffff
+            .frame(maxWidth: .infinity)                      // full-width
+            .padding(.vertical, 16)
+            .background(
+                RoundedRectangle(cornerRadius: 22)           // pill, radius 22
+                    .fill(SphirColor.taupe)                  // taupe
+            )
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("openInReaderButton")
         .accessibilityHint("Opens the linked page inside Sphir")
+    }
+
+    /// The URL shown as a tappable link (opens the in-app reader).
+    private func urlLink(_ url: URL) -> some View {
+        Button {
+            showReader = true
+        } label: {
+            Text(url.absoluteString)
+                .font(SphirFont.body(13))
+                .foregroundColor(SphirColor.taupe)
+                .underline()
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("cardURLLink")
+    }
+
+    /// Returns the first field that looks like a web URL, adding an https
+    /// scheme to bare domains (e.g. "apple.com").
+    private static func firstWebURL(in fields: [String?]) -> URL? {
+        for case let value? in fields {
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+
+            if let url = URL(string: trimmed),
+               let scheme = url.scheme?.lowercased(),
+               scheme == "http" || scheme == "https" {
+                return url
+            }
+            // Bare domain like "apple.com" or "www.apple.com/path".
+            if trimmed.contains("."), !trimmed.contains(" "),
+               let url = URL(string: "https://\(trimmed)"), url.host != nil {
+                return url
+            }
+        }
+        return nil
     }
 
     private var syncBadge: some View {

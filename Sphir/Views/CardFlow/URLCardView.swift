@@ -138,10 +138,16 @@ struct URLCardView: View {
     }
 
     private func save() {
+        // Store a fully-qualified URL so the card's content is a valid link
+        // (a bare "apple.com" would otherwise be saved without a scheme).
+        let trimmed = urlText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = trimmed.isEmpty ? ""
+            : (trimmed.contains("://") ? trimmed : "https://\(trimmed)")
+
         appStore.addCard(
             title: title,
             description: descriptionText,
-            urlText: urlText,
+            urlText: normalized,
             tagsText: "",
             type: .text,
             source: .url,
