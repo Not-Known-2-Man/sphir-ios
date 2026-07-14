@@ -268,6 +268,93 @@ final class SphirUITests: XCTestCase {
     }
 
     @MainActor
+    func testSignUpShowsOnboardingThenDashboard() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST", "LOGGED_OUT", "SHOW_ONBOARDING"]
+        app.launch()
+
+        // Auth screen (Sign In by default) → switch to Sign Up.
+        let toggle = app.buttons["authToggleButton"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5), "Auth screen should appear when logged out.")
+        toggle.tap()
+
+        let nameField = app.textFields["authNameField"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 3))
+        nameField.tap()
+        if !app.keyboards.element.waitForExistence(timeout: 2) { nameField.tap() }
+        nameField.typeText("Dana")
+
+        app.textFields["authEmailField"].tap()
+        app.textFields["authEmailField"].typeText("dana@example.com")
+
+        app.secureTextFields["authPasswordField"].tap()
+        app.secureTextFields["authPasswordField"].typeText("secret")
+
+        app.buttons["authSubmitButton"].tap()
+
+        // First-time user → onboarding → dashboard with their name.
+        XCTAssertTrue(app.staticTexts["Welcome to Sphir"].waitForExistence(timeout: 5))
+        app.buttons["getStartedButton"].tap()
+
+        // Dashboard should appear…
+        XCTAssertTrue(
+            app.buttons["addCardButton"].waitForExistence(timeout: 8),
+            "Dashboard should appear after onboarding."
+        )
+        // …greeting the signed-up user by name.
+        let greeting = app.staticTexts
+            .matching(NSPredicate(format: "label BEGINSWITH %@", "Good morning"))
+            .firstMatch
+        XCTAssertTrue(greeting.waitForExistence(timeout: 3))
+        XCTAssertTrue(greeting.label.contains("Dana"), "Greeting was: \(greeting.label)")
+    }
+
+    @MainActor
+    func testSignInSkipsOnboarding() throws {
+        let app = XCUIApplication()
+        // LOGGED_OUT (no SHOW_ONBOARDING) → returning user who has seen onboarding.
+        app.launchArguments = ["UITEST", "LOGGED_OUT"]
+        app.launch()
+
+        let emailField = app.textFields["authEmailField"]
+        XCTAssertTrue(emailField.waitForExistence(timeout: 5))
+        emailField.tap()
+        if !app.keyboards.element.waitForExistence(timeout: 2) { emailField.tap() }
+        emailField.typeText("dana@example.com")
+
+        app.secureTextFields["authPasswordField"].tap()
+        app.secureTextFields["authPasswordField"].typeText("secret")
+
+        app.buttons["authSubmitButton"].tap()
+
+        // Straight to the dashboard — no onboarding.
+        XCTAssertTrue(
+            app.staticTexts["Good morning, Dana"].waitForExistence(timeout: 5),
+            "Sign In should go directly to the dashboard."
+        )
+        XCTAssertFalse(app.staticTexts["Welcome to Sphir"].exists, "Onboarding should be skipped.")
+    }
+
+    @MainActor
+    func testSignOutReturnsToAuth() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Good morning, Alex"].waitForExistence(timeout: 5))
+        app.buttons["settingsButton"].tap()
+
+        let signOut = app.buttons["signOutButton"]
+        XCTAssertTrue(signOut.waitForExistence(timeout: 3))
+        signOut.tap()
+
+        XCTAssertTrue(
+            app.textFields["authEmailField"].waitForExistence(timeout: 5),
+            "Signing out should return to the auth screen."
+        )
+    }
+
+    @MainActor
     func testNotificationsEmptyState() throws {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST"]

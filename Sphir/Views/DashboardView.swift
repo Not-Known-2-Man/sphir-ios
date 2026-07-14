@@ -17,12 +17,14 @@ struct DashboardView: View {
 
     @EnvironmentObject private var appStore: AppStore
     @EnvironmentObject private var router: NavigationRouter
+    @EnvironmentObject private var session: AuthSession
     @State private var selectedTab: DashboardTab = .collections
     @State private var searchText: String = ""
     @State private var showCollectionFlow = false
     @State private var showSettings = false
     @State private var showNotifications = false
-    @State private var showOnboarding = OnboardingGate.shouldShow()
+    @State private var showOnboarding = false
+    @State private var didCheckOnboarding = false
     @StateObject private var cardFlow = CardFlowCoordinator()
 
     private let gridColumns = [
@@ -87,17 +89,23 @@ struct DashboardView: View {
         // Settings.
         .sheet(isPresented: $showSettings) {
             SettingsView()
+                .environmentObject(session)
         }
         // Notifications.
         .sheet(isPresented: $showNotifications) {
             NotificationsView()
         }
-        // First-launch onboarding.
+        // First-launch onboarding (shown once, after login).
         .fullScreenCover(isPresented: $showOnboarding) {
             OnboardingView {
-                OnboardingGate.complete()
+                session.completeOnboarding()
                 showOnboarding = false
             }
+        }
+        .onAppear {
+            guard !didCheckOnboarding else { return }
+            didCheckOnboarding = true
+            showOnboarding = !session.hasSeenOnboarding
         }
         // User-friendly error surface (e.g. storage failures).
         .alert(
@@ -144,7 +152,7 @@ struct DashboardView: View {
                     .fill(SphirColor.lightTaupe)
                     .frame(width: 32, height: 32)
                     .overlay(
-                        Text("A")
+                        Text(session.initial)
                             .font(SphirFont.body(14, weight: .semibold))
                             .foregroundColor(.white)
                     )
@@ -202,7 +210,7 @@ struct DashboardView: View {
     // MARK: - Greeting
 
     private var greeting: some View {
-        Text("Good morning, Alex")
+        Text("Good morning, \(session.displayName)")
             .font(SphirFont.heading(20, weight: .bold))
             .foregroundColor(SphirColor.textPrimary)
             .accessibilityAddTraits(.isHeader)
@@ -353,4 +361,5 @@ struct DashboardView: View {
     DashboardView()
         .environmentObject(AppStore())
         .environmentObject(NavigationRouter())
+        .environmentObject(AuthSession())
 }

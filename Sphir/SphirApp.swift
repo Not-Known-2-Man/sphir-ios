@@ -13,13 +13,15 @@ struct SphirApp: App {
     let persistenceController = PersistenceController.shared
     @StateObject private var appStore = AppStore()
     @StateObject private var router = NavigationRouter()
+    @StateObject private var session = AuthSession()
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
-            DashboardView()
+            RootView()
                 .environmentObject(appStore)
                 .environmentObject(router)
+                .environmentObject(session)
                 .environment(\.managedObjectContext, persistenceController.container.viewContext)
                 // Custom scheme: sphir://card/<id>, sphir://collection/<id>
                 .onOpenURL { url in

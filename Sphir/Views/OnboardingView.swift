@@ -7,22 +7,6 @@
 
 import SwiftUI
 
-/// Decides whether onboarding should be shown, and records completion.
-enum OnboardingGate {
-    static let key = "hasCompletedOnboarding"
-
-    static func shouldShow() -> Bool {
-        let args = ProcessInfo.processInfo.arguments
-        if args.contains("SHOW_ONBOARDING") { return true }   // force for tests
-        if args.contains("UITEST") { return false }           // deterministic otherwise
-        return !UserDefaults.standard.bool(forKey: key)
-    }
-
-    static func complete() {
-        UserDefaults.standard.set(true, forKey: key)
-    }
-}
-
 struct OnboardingView: View {
     let onGetStarted: () -> Void
 

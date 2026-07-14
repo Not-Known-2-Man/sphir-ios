@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @EnvironmentObject private var session: AuthSession
     @Environment(\.dismiss) private var dismiss
 
     private var appVersion: String {
@@ -25,6 +26,12 @@ struct SettingsView: View {
                     profileCard
                     syncStatusCard
                     aboutSection
+
+                    #if DEBUG
+                    resetOnboardingButton
+                    #endif
+
+                    signOutButton
 
                     Text(appVersion)
                         .font(SphirFont.body(12))
@@ -48,16 +55,16 @@ struct SettingsView: View {
                 .fill(SphirColor.lightTaupe)
                 .frame(width: 56, height: 56)
                 .overlay(
-                    Text("A")
+                    Text(session.initial)
                         .font(SphirFont.heading(24, weight: .bold))
                         .foregroundColor(.white)
                 )
 
             VStack(alignment: .leading, spacing: 3) {
-                Text("Alex")
+                Text(session.displayName)
                     .font(SphirFont.body(17, weight: .bold))
                     .foregroundColor(SphirColor.textPrimary)
-                Text("Personal workspace")
+                Text(session.userEmail.isEmpty ? "Personal workspace" : session.userEmail)
                     .font(SphirFont.body(13))
                     .foregroundColor(SphirColor.mutedText)
             }
@@ -67,7 +74,7 @@ struct SettingsView: View {
         .padding(16)
         .background(card)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Alex, personal workspace")
+        .accessibilityLabel("\(session.displayName), \(session.userEmail.isEmpty ? "personal workspace" : session.userEmail)")
     }
 
     // MARK: - Sync status
@@ -124,8 +131,48 @@ struct SettingsView: View {
             .fill(SphirColor.cardBackground)
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(SphirColor.border, lineWidth: 1))
     }
+
+    // MARK: - Actions
+
+    private var signOutButton: some View {
+        Button {
+            session.signOut()
+            dismiss()
+        } label: {
+            Text("Sign Out")
+                .font(SphirFont.body(16, weight: .semibold))
+                .foregroundColor(.red)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(SphirColor.cardBackground)
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(SphirColor.border, lineWidth: 1))
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("signOutButton")
+    }
+
+    #if DEBUG
+    private var resetOnboardingButton: some View {
+        Button {
+            session.resetOnboarding()
+            dismiss()
+        } label: {
+            Text("Reset Onboarding (debug)")
+                .font(SphirFont.body(13))
+                .foregroundColor(SphirColor.mutedText)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("resetOnboardingButton")
+    }
+    #endif
 }
 
 #Preview {
     SettingsView()
+        .environmentObject(AuthSession())
 }
