@@ -136,7 +136,7 @@ struct SettingsView: View {
 
     private var signOutButton: some View {
         Button {
-            session.signOut()
+            Task { await session.signOut() }
             dismiss()
         } label: {
             Text("Sign Out")
@@ -169,6 +169,7 @@ struct SettingsView: View {
         .buttonStyle(.plain)
         .accessibilityIdentifier("resetOnboardingButton")
     }
+
     #endif
 }
 

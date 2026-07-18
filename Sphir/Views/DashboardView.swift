@@ -107,6 +107,10 @@ struct DashboardView: View {
             didCheckOnboarding = true
             showOnboarding = !session.hasSeenOnboarding
         }
+        // Pull collections + cards from the API on login (no-op offline/mock).
+        .task {
+            await appStore.syncFromAPI()
+        }
         // User-friendly error surface (e.g. storage failures).
         .alert(
             "Something went wrong",

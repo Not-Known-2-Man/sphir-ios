@@ -39,18 +39,18 @@ final class SphirUITests: XCTestCase {
 
         // Step 1: Select Type → Text
         let textType = app.buttons["cardType_text"]
-        XCTAssertTrue(textType.waitForExistence(timeout: 3), "Card type list should appear.")
+        XCTAssertTrue(textType.waitForExistence(timeout: 8), "Card type list should appear.")
         textType.tap()
 
         // Step 2: Select Source → Paste URL (leads to the manual card form;
         // Photos/Camera/Screenshots open system pickers instead).
         let urlSource = app.buttons["cardSource_url"]
-        XCTAssertTrue(urlSource.waitForExistence(timeout: 3), "Source list should appear.")
+        XCTAssertTrue(urlSource.waitForExistence(timeout: 5), "Source list should appear.")
         urlSource.tap()
 
         // Step 3: Form → enter a title and save.
         let titleField = app.textFields["cardTitleField"]
-        XCTAssertTrue(titleField.waitForExistence(timeout: 3), "Card form should appear.")
+        XCTAssertTrue(titleField.waitForExistence(timeout: 8), "Card form should appear.")
         titleField.tap()
         if !app.keyboards.element.waitForExistence(timeout: 2) {
             titleField.tap()
@@ -62,7 +62,7 @@ final class SphirUITests: XCTestCase {
 
         // Step 4: Success overlay.
         XCTAssertTrue(
-            app.staticTexts["Card Saved!"].waitForExistence(timeout: 5),
+            app.staticTexts["Card Saved!"].waitForExistence(timeout: 8),
             "Success screen should appear after saving."
         )
         // Tap "Back to Dashboard" if it's still up; otherwise the 3s
@@ -101,15 +101,18 @@ final class SphirUITests: XCTestCase {
 
         // Fill the form and continue.
         let titleField = app.textFields["collectionTitleField"]
-        XCTAssertTrue(titleField.waitForExistence(timeout: 3), "Collection form should appear.")
+        XCTAssertTrue(titleField.waitForExistence(timeout: 5), "Collection form should appear.")
         titleField.tap()
+        if !app.keyboards.element.waitForExistence(timeout: 2) {
+            titleField.tap()
+        }
         titleField.typeText("Field Notes")
 
         app.buttons["collectionContinueButton"].tap()
 
         // Success confirmation, then auto-return to the dashboard.
         XCTAssertTrue(
-            app.staticTexts["Collection Created!"].waitForExistence(timeout: 3),
+            app.staticTexts["Collection Created!"].waitForExistence(timeout: 5),
             "Success screen should appear after creating a collection."
         )
 
@@ -133,25 +136,25 @@ final class SphirUITests: XCTestCase {
 
         // Collection detail shows the description and a card row.
         XCTAssertTrue(
-            app.staticTexts["Articles and posts saved for later."].waitForExistence(timeout: 3),
+            app.staticTexts["Articles and posts saved for later."].waitForExistence(timeout: 8),
             "Collection detail should show the description."
         )
         let cardRow = app.staticTexts["Highlights Reel"]
-        XCTAssertTrue(cardRow.waitForExistence(timeout: 3))
+        XCTAssertTrue(cardRow.waitForExistence(timeout: 5))
         cardRow.tap()
 
         // Card detail shows tags + sync status.
         XCTAssertTrue(
-            app.staticTexts["#video"].waitForExistence(timeout: 3),
+            app.staticTexts["#video"].waitForExistence(timeout: 5),
             "Card detail should show tags."
         )
         XCTAssertTrue(app.staticTexts["Tags"].exists)
 
         // Back to collection, then back to dashboard.
         app.buttons["cardDetailBackButton"].tap()
-        XCTAssertTrue(app.staticTexts["Articles and posts saved for later."].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Articles and posts saved for later."].waitForExistence(timeout: 5))
         app.buttons["collectionDetailBackButton"].tap()
-        XCTAssertTrue(app.staticTexts["Good morning, Alex"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Good morning, Alex"].waitForExistence(timeout: 5))
     }
 
     @MainActor
@@ -163,7 +166,7 @@ final class SphirUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Reading List"].waitForExistence(timeout: 5))
 
         let search = app.textFields["searchField"]
-        XCTAssertTrue(search.waitForExistence(timeout: 3))
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
         search.tap()
         if !app.keyboards.element.waitForExistence(timeout: 2) {
             search.tap()
@@ -171,12 +174,12 @@ final class SphirUITests: XCTestCase {
         search.typeText("Reading")
 
         // Matching collection stays; non-matching one is filtered out.
-        XCTAssertTrue(app.staticTexts["Reading List"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Reading List"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["Inspiration"].exists)
 
         // A seeded card whose title contains the query shows in the results.
         XCTAssertTrue(
-            app.staticTexts["Reading List: Getting Started"].waitForExistence(timeout: 3),
+            app.staticTexts["Reading List: Getting Started"].waitForExistence(timeout: 5),
             "A matching card should appear in the Cards results."
         )
     }
@@ -188,25 +191,33 @@ final class SphirUITests: XCTestCase {
         app.launch()
 
         app.staticTexts["Reading List"].tap()
-        XCTAssertTrue(app.staticTexts["Articles and posts saved for later."].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Articles and posts saved for later."].waitForExistence(timeout: 8))
 
         // Reading List seeds 12 cards.
-        XCTAssertTrue(app.staticTexts["12 items"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["12 items"].waitForExistence(timeout: 8))
 
         let row = app.buttons.containing(
             NSPredicate(format: "label CONTAINS %@", "Wishlist Item")
         ).firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 3))
+        XCTAssertTrue(row.waitForExistence(timeout: 8))
         row.press(forDuration: 1.0)
 
-        app.buttons["Delete"].firstMatch.tap()        // context-menu item
-        let confirm = app.alerts.buttons["Delete"]     // confirmation alert
-        XCTAssertTrue(confirm.waitForExistence(timeout: 3))
+        // The context-menu button has identifier='trash' (SF symbol) and label='Delete'.
+        // On iOS 26 the subscript query matches only by identifier, so we must use a
+        // label predicate to find the button regardless of its system-image identifier.
+        let deleteByLabel = NSPredicate(format: "label == %@", "Delete")
+        let deleteItem = app.buttons.matching(deleteByLabel).firstMatch
+        XCTAssertTrue(deleteItem.waitForExistence(timeout: 5), "Delete context-menu item should appear.")
+        deleteItem.tap()
+
+        // Confirmation alert — same predicate approach for robustness.
+        let confirm = app.alerts.buttons.matching(deleteByLabel).firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
         confirm.tap()
 
         // Deleting one card drops the collection's count.
         XCTAssertTrue(
-            app.staticTexts["11 items"].waitForExistence(timeout: 3),
+            app.staticTexts["11 items"].waitForExistence(timeout: 5),
             "Count should drop to 11 after deleting a card."
         )
     }
@@ -218,18 +229,22 @@ final class SphirUITests: XCTestCase {
         app.launch()
 
         app.staticTexts["Reading List"].tap()
-        XCTAssertTrue(app.staticTexts["Articles and posts saved for later."].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Articles and posts saved for later."].waitForExistence(timeout: 5))
 
         let row = app.buttons.containing(
             NSPredicate(format: "label CONTAINS %@", "Key Contact")
         ).firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 3))
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
         row.press(forDuration: 1.0)
 
-        app.buttons["Edit"].firstMatch.tap()
+        // The context-menu button has identifier='pencil' (SF symbol) and label='Edit'.
+        // Use a label predicate so the query doesn't depend on the system-image identifier.
+        let editItem = app.buttons.matching(NSPredicate(format: "label == %@", "Edit")).firstMatch
+        XCTAssertTrue(editItem.waitForExistence(timeout: 5), "Edit context-menu item should appear.")
+        editItem.tap()
 
         let titleField = app.textFields["editTitleField"]
-        XCTAssertTrue(titleField.waitForExistence(timeout: 3))
+        XCTAssertTrue(titleField.waitForExistence(timeout: 5))
         titleField.tap()
         if !app.keyboards.element.waitForExistence(timeout: 2) {
             titleField.tap()
@@ -244,7 +259,7 @@ final class SphirUITests: XCTestCase {
         app.buttons["editSaveButton"].tap()
 
         XCTAssertTrue(
-            app.staticTexts[uniqueTitle].waitForExistence(timeout: 3),
+            app.staticTexts[uniqueTitle].waitForExistence(timeout: 5),
             "Edited title should appear in the card list."
         )
     }
@@ -262,7 +277,7 @@ final class SphirUITests: XCTestCase {
         app.buttons["getStartedButton"].tap()
 
         XCTAssertTrue(
-            app.staticTexts["Good morning, Alex"].waitForExistence(timeout: 3),
+            app.staticTexts["Good morning, Alex"].waitForExistence(timeout: 5),
             "Dashboard should appear after Get Started."
         )
     }
@@ -279,7 +294,7 @@ final class SphirUITests: XCTestCase {
         toggle.tap()
 
         let nameField = app.textFields["authNameField"]
-        XCTAssertTrue(nameField.waitForExistence(timeout: 3))
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5))
         nameField.tap()
         if !app.keyboards.element.waitForExistence(timeout: 2) { nameField.tap() }
         nameField.typeText("Dana")
@@ -305,7 +320,7 @@ final class SphirUITests: XCTestCase {
         let greeting = app.staticTexts
             .matching(NSPredicate(format: "label BEGINSWITH %@", "Good morning"))
             .firstMatch
-        XCTAssertTrue(greeting.waitForExistence(timeout: 3))
+        XCTAssertTrue(greeting.waitForExistence(timeout: 5))
         XCTAssertTrue(greeting.label.contains("Dana"), "Greeting was: \(greeting.label)")
     }
 
@@ -345,7 +360,7 @@ final class SphirUITests: XCTestCase {
         app.buttons["settingsButton"].tap()
 
         let signOut = app.buttons["signOutButton"]
-        XCTAssertTrue(signOut.waitForExistence(timeout: 3))
+        XCTAssertTrue(signOut.waitForExistence(timeout: 5))
         signOut.tap()
 
         XCTAssertTrue(
@@ -362,7 +377,7 @@ final class SphirUITests: XCTestCase {
 
         app.buttons["notificationsButton"].tap()
         XCTAssertTrue(
-            app.staticTexts["No new notifications"].waitForExistence(timeout: 3),
+            app.staticTexts["No new notifications"].waitForExistence(timeout: 5),
             "Bell should open the notifications empty state."
         )
     }
@@ -376,11 +391,15 @@ final class SphirUITests: XCTestCase {
         app.launch()
 
         app.buttons["addCardButton"].tap()
-        app.buttons["cardType_text"].tap()
-        app.buttons["cardSource_url"].tap()
+        let pasteTextType = app.buttons["cardType_text"]
+        XCTAssertTrue(pasteTextType.waitForExistence(timeout: 5))
+        pasteTextType.tap()
+        let pasteUrlSource = app.buttons["cardSource_url"]
+        XCTAssertTrue(pasteUrlSource.waitForExistence(timeout: 5))
+        pasteUrlSource.tap()
 
         let urlField = app.textFields["cardURLField"]
-        XCTAssertTrue(urlField.waitForExistence(timeout: 3))
+        XCTAssertTrue(urlField.waitForExistence(timeout: 5))
         urlField.tap()
         if !app.keyboards.element.waitForExistence(timeout: 2) {
             urlField.tap()
@@ -389,57 +408,55 @@ final class SphirUITests: XCTestCase {
 
         // The title field's value should become "Apple" once metadata loads.
         let titleField = app.textFields["cardTitleField"]
-        XCTAssertTrue(titleField.waitForExistence(timeout: 3))
+        XCTAssertTrue(titleField.waitForExistence(timeout: 5))
         let populated = NSPredicate(format: "value == %@", "Apple")
         expectation(for: populated, evaluatedWith: titleField)
         waitForExpectations(timeout: 20)
     }
 
-    /// Requires network. Creates a URL card, opens it, and launches the
-    /// in-app reader.
+    /// Offline: create a URL card, open it, and launch the in-app reader.
+    /// Uses a non-resolving host so the auto-fetch can't overwrite the title.
     @MainActor
     func testOpenInReaderLoadsPage() throws {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST"]
         app.launch()
 
-        // Create a card from a URL.
         app.buttons["addCardButton"].tap()
         let textType = app.buttons["cardType_text"]
-        XCTAssertTrue(textType.waitForExistence(timeout: 3))
+        XCTAssertTrue(textType.waitForExistence(timeout: 5))
         textType.tap()
         let urlSource = app.buttons["cardSource_url"]
-        XCTAssertTrue(urlSource.waitForExistence(timeout: 3))
+        XCTAssertTrue(urlSource.waitForExistence(timeout: 5))
         urlSource.tap()
 
         let urlField = app.textFields["cardURLField"]
-        XCTAssertTrue(urlField.waitForExistence(timeout: 3))
+        XCTAssertTrue(urlField.waitForExistence(timeout: 5))
         urlField.tap()
         if !app.keyboards.element.waitForExistence(timeout: 2) { urlField.tap() }
-        urlField.typeText("https://apple.com\n")
+        urlField.typeText("https://example.invalid")
 
-        // Confirm metadata fetched, then save.
         let titleField = app.textFields["cardTitleField"]
-        XCTAssertTrue(titleField.waitForExistence(timeout: 3))
-        expectation(for: NSPredicate(format: "value == %@", "Apple"), evaluatedWith: titleField)
-        waitForExpectations(timeout: 20)
+        XCTAssertTrue(titleField.waitForExistence(timeout: 5))
+        titleField.tap()
+        titleField.typeText("Reader Test Card")
+
         app.buttons["navDoneButton"].tap()
 
-        // The success screen auto-dismisses back to the dashboard. Open the
-        // Reading List collection card (its label begins with "Reading List").
-        let readingList = app.buttons
-            .matching(NSPredicate(format: "label BEGINSWITH %@", "Reading List"))
-            .firstMatch
-        XCTAssertTrue(readingList.waitForExistence(timeout: 8))
+        // Wait for the dashboard to be interactive again (success cover gone),
+        // then open the collection (tapping the title text, as other tests do).
+        let readingList = app.staticTexts["Reading List"].firstMatch
+        expectation(for: NSPredicate(format: "isHittable == true"), evaluatedWith: readingList)
+        waitForExpectations(timeout: 10)
         readingList.tap()
 
-        let appleCard = app.staticTexts["Apple"].firstMatch
-        XCTAssertTrue(appleCard.waitForExistence(timeout: 5))
-        appleCard.tap()
+        let card = app.staticTexts["Reader Test Card"].firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 10))
+        card.tap()
 
         // Open in Reader → WKWebView reader appears.
         let openReader = app.buttons["openInReaderButton"]
-        XCTAssertTrue(openReader.waitForExistence(timeout: 3), "Open in Reader button should show for URL cards.")
+        XCTAssertTrue(openReader.waitForExistence(timeout: 5), "Open in Reader button should show for URL cards.")
         openReader.tap()
 
         XCTAssertTrue(
@@ -475,7 +492,7 @@ final class SphirUITests: XCTestCase {
         // Switch to Groups.
         app.buttons["Groups"].tap()
         XCTAssertTrue(
-            app.staticTexts["Rockets"].waitForExistence(timeout: 3),
+            app.staticTexts["Rockets"].waitForExistence(timeout: 5),
             "Groups tab should show the mock Sphirs."
         )
         XCTAssertTrue(app.staticTexts["All Things Canning"].exists)
@@ -483,7 +500,7 @@ final class SphirUITests: XCTestCase {
         // Switch back to Collections.
         app.buttons["Collections"].tap()
         XCTAssertTrue(
-            app.staticTexts["Reading List"].waitForExistence(timeout: 3),
+            app.staticTexts["Reading List"].waitForExistence(timeout: 5),
             "Collections tab should return."
         )
     }

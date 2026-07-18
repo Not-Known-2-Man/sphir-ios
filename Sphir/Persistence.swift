@@ -77,7 +77,8 @@ final class PersistenceController {
             attribute("name", .stringAttributeType),
             attribute("collectionDescription", .stringAttributeType),
             attribute("privacy", .stringAttributeType),
-            attribute("createdAt", .dateAttributeType)
+            attribute("createdAt", .dateAttributeType),
+            attribute("serverID", .stringAttributeType)
         ]
 
         let card = NSEntityDescription()
@@ -95,7 +96,8 @@ final class PersistenceController {
             attribute("tagsJSON", .stringAttributeType),
             attribute("syncStatus", .stringAttributeType),
             attribute("createdAt", .dateAttributeType),
-            attribute("collectionID", .UUIDAttributeType)
+            attribute("collectionID", .UUIDAttributeType),
+            attribute("serverID", .stringAttributeType)
         ]
 
         model.entities = [collection, card]

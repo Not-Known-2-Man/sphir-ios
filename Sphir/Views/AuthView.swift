@@ -2,8 +2,8 @@
 //  AuthView.swift
 //  Sphir
 //
-//  Sign In / Sign Up screen. Mock authentication — records the user in the
-//  session (UserDefaults); no real backend yet.
+//  Sign In / Sign Up screen, backed by the real API (AuthSession →
+//  AuthAPIService). Uses the mock path automatically under UITEST.
 //
 
 import SwiftUI
@@ -18,6 +18,9 @@ struct AuthView: View {
     @State private var name = ""
     @State private var email = ""
     @State private var password = ""
+    @State private var isSubmitting = false
+    @State private var isGuestLoading = false
+    @State private var authError: String?
 
     private var isSignUp: Bool { mode == .signUp }
 
@@ -25,7 +28,7 @@ struct AuthView: View {
         let emailOK = email.contains("@") && email.contains(".")
         let passwordOK = password.count >= 4
         let nameOK = !isSignUp || !name.trimmingCharacters(in: .whitespaces).isEmpty
-        return emailOK && passwordOK && nameOK
+        return emailOK && passwordOK && nameOK && !isSubmitting
     }
 
     var body: some View {
@@ -47,6 +50,8 @@ struct AuthView: View {
                     submitButton
 
                     if !isSignUp {
+                        guestButton
+
                         Button("Forgot password?") { /* mock: no-op */ }
                             .font(SphirFont.body(13))
                             .foregroundColor(SphirColor.taupe)
@@ -60,31 +65,55 @@ struct AuthView: View {
                 .padding(.bottom, 32)
             }
         }
+        .alert(
+            "Sign-in failed",
+            isPresented: Binding(get: { authError != nil }, set: { if !$0 { authError = nil } })
+        ) {
+            Button("OK", role: .cancel) { authError = nil }
+        } message: {
+            Text(authError ?? "")
+        }
     }
 
     // MARK: - Actions
 
     private func submit() {
-        // Dismiss the keyboard first, then route once its input window has
-        // torn down — otherwise the lingering window sits over the next
-        // screen and swallows taps.
+        // Dismiss the keyboard so its input window doesn't linger over the
+        // next screen and swallow taps.
         UIApplication.shared.sendAction(
             #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
         )
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-            performAuth()
+        Task { await performAuth() }
+    }
+
+    private func performGuestLogin() {
+        Task {
+            isGuestLoading = true
+            defer { isGuestLoading = false }
+            do {
+                try await session.continueAsGuest()
+            } catch {
+                authError = (error as? LocalizedError)?.errorDescription
+                    ?? "Couldn't connect. Check your connection and try again."
+            }
         }
     }
 
-    private func performAuth() {
-        switch mode {
-        case .signIn:
-            session.signIn(email: email.trimmingCharacters(in: .whitespaces))
-        case .signUp:
-            session.signUp(
-                name: name,
-                email: email.trimmingCharacters(in: .whitespaces)
-            )
+    private func performAuth() async {
+        isSubmitting = true
+        defer { isSubmitting = false }
+
+        let cleanEmail = email.trimmingCharacters(in: .whitespaces)
+        do {
+            switch mode {
+            case .signIn:
+                try await session.signIn(email: cleanEmail, password: password)
+            case .signUp:
+                try await session.signUp(name: name, email: cleanEmail, password: password)
+            }
+        } catch {
+            authError = (error as? LocalizedError)?.errorDescription
+                ?? "Something went wrong. Please try again."
         }
     }
 
@@ -143,17 +172,40 @@ struct AuthView: View {
 
     private var submitButton: some View {
         Button(action: submit) {
-            Text(isSignUp ? "Create Account" : "Sign In")
-                .font(SphirFont.body(16, weight: .semibold))
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(RoundedRectangle(cornerRadius: 22).fill(SphirColor.taupe))
+            Group {
+                if isSubmitting {
+                    ProgressView().tint(.white)
+                } else {
+                    Text(isSignUp ? "Create Account" : "Sign In")
+                }
+            }
+            .font(SphirFont.body(16, weight: .semibold))
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(RoundedRectangle(cornerRadius: 22).fill(SphirColor.taupe))
         }
         .buttonStyle(.plain)
         .disabled(!canSubmit)
         .opacity(canSubmit ? 1 : 0.5)
         .accessibilityIdentifier("authSubmitButton")
+    }
+
+    private var guestButton: some View {
+        Button(action: performGuestLogin) {
+            Group {
+                if isGuestLoading {
+                    ProgressView().tint(SphirColor.mutedText)
+                } else {
+                    Text("Continue as Guest")
+                }
+            }
+            .font(SphirFont.body(14))
+            .foregroundColor(SphirColor.mutedText)
+        }
+        .buttonStyle(.plain)
+        .disabled(isGuestLoading || isSubmitting)
+        .accessibilityIdentifier("continueAsGuestButton")
     }
 
     private var toggleRow: some View {

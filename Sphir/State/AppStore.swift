@@ -19,6 +19,8 @@ final class AppStore: ObservableObject {
     @Published var errorMessage: String?
 
     private let context: NSManagedObjectContext
+    /// Timestamp of the last successful API sync (drives the 5-min refresh).
+    private var lastSyncedAt: Date?
 
     init(
         context: NSManagedObjectContext = PersistenceController.shared.container.viewContext,
@@ -71,6 +73,7 @@ final class AppStore: ObservableObject {
         insert(card)
         save()
         reload()
+        pushNewCard(card)
         return card
     }
 
@@ -115,6 +118,7 @@ final class AppStore: ObservableObject {
         insert(card)
         save()
         reload()
+        pushNewCard(card)
         return card
     }
 
@@ -127,23 +131,165 @@ final class AppStore: ObservableObject {
         object.setValue(encodeTags(card.tags), forKey: "tagsJSON")
         save()
         reload()
+
+        guard KeychainService.hasCredentials, let serverID = card.serverID else { return }
+        Task { try? await CardAPIService.updateCard(serverID: serverID, card: card) }
     }
 
     func deleteCard(id: UUID) {
+        let serverID = cards.first(where: { $0.id == id })?.serverID
         guard let object = cdCard(id: id) else { return }
         context.delete(object)
         save()
         reload()
+
+        guard KeychainService.hasCredentials, let serverID else { return }
+        Task { try? await CardAPIService.deleteCard(serverID: serverID) }
     }
 
     @discardableResult
     func addCollection(name: String, description: String = "", privacy: CollectionPrivacy) -> Collection {
         let collection = Collection(name: name, description: description, cardCount: 0, privacy: privacy)
-        insert(collection)
+        insert(collection)                 // CoreData first — instant UI update
         save()
         reload()
         publishCollectionsToSharedInbox()
+        pushNewCollection(collection)      // then push to the API (if logged in)
         return collection
+    }
+
+    /// Delete a collection locally, then on the backend.
+    func deleteCollection(id: UUID) {
+        let serverID = collections.first(where: { $0.id == id })?.serverID
+        if let object = cdCollection(id: id) {
+            context.delete(object)
+            save()
+            reload()
+            publishCollectionsToSharedInbox()
+        }
+        guard KeychainService.hasCredentials, let serverID else { return }
+        Task { try? await CollectionAPIService.deleteCollection(serverID: serverID) }
+    }
+
+    // MARK: - Collections API sync
+
+    /// Fetch folders from the API and merge them into CoreData (upsert by
+    /// serverID). Keeps local cache on failure.
+    func syncCollections() async {
+        guard KeychainService.hasCredentials else { return }
+        do {
+            let remote = try await CollectionAPIService.fetchCollections()
+            for collection in remote {
+                if let serverID = collection.serverID, let object = cdCollection(serverID: serverID) {
+                    object.setValue(collection.name, forKey: "name")
+                    object.setValue(collection.description, forKey: "collectionDescription")
+                    object.setValue(collection.privacy.rawValue, forKey: "privacy")
+                } else {
+                    insert(collection)
+                }
+            }
+            save()
+            reload()
+            publishCollectionsToSharedInbox()
+        } catch {
+            // Offline / unreachable → keep the cached collections.
+        }
+    }
+
+    private func pushNewCollection(_ collection: Collection) {
+        guard KeychainService.hasCredentials else { return }
+        Task {
+            do {
+                let remote = try await CollectionAPIService.createCollection(
+                    name: collection.name,
+                    description: collection.description,
+                    privacy: collection.privacy.rawValue
+                )
+                if let serverID = remote.serverID, let object = cdCollection(id: collection.id) {
+                    object.setValue(serverID, forKey: "serverID")
+                    save()
+                    reload()
+                }
+            } catch {
+                // Stays local; a later sync/retry will reconcile it.
+            }
+        }
+    }
+
+    // MARK: - Cards API sync
+
+    /// Fetch businesses from the API and merge them into CoreData (upsert by
+    /// serverID, filing each under its folder when known). Keeps cache on fail.
+    func syncCards() async {
+        guard KeychainService.hasCredentials else { return }
+        do {
+            let remote = try await CardAPIService.fetchCards()
+            for dto in remote {
+                var card = dto.toCard()
+                if let folderServerID = dto.folderServerID,
+                   let folder = cdCollection(serverID: folderServerID) {
+                    card.collectionID = folder.value(forKey: "id") as? UUID
+                }
+                if let serverID = card.serverID, let object = cdCard(serverID: serverID) {
+                    object.setValue(card.title, forKey: "title")
+                    object.setValue(card.description, forKey: "cardDescription")
+                    object.setValue(card.content, forKey: "content")
+                    object.setValue(encodeTags(card.tags), forKey: "tagsJSON")
+                    object.setValue(SyncStatus.synced.rawValue, forKey: "syncStatus")
+                    object.setValue(card.collectionID, forKey: "collectionID")
+                } else {
+                    insert(card)
+                }
+            }
+            save()
+            reload()
+        } catch {
+            // Offline / unreachable → keep the cached cards.
+        }
+    }
+
+    /// Push a just-created card to the API: mark syncing, then synced/offline.
+    private func pushNewCard(_ card: Card) {
+        guard KeychainService.hasCredentials else { return }
+        setSyncStatus(.syncing, for: card.id)
+        Task {
+            do {
+                let remote = try await CardAPIService.createCard(card)
+                if let object = cdCard(id: card.id) {
+                    object.setValue(remote.serverID, forKey: "serverID")
+                    object.setValue(SyncStatus.synced.rawValue, forKey: "syncStatus")
+                    save()
+                    reload()
+                }
+            } catch {
+                setSyncStatus(.offline, for: card.id)
+            }
+        }
+    }
+
+    private func setSyncStatus(_ status: SyncStatus, for id: UUID) {
+        guard let object = cdCard(id: id) else { return }
+        object.setValue(status.rawValue, forKey: "syncStatus")
+        save()
+        reload()
+    }
+
+    // MARK: - Combined sync
+
+    /// Pull collections then cards from the API (order matters so cards can be
+    /// filed under their folders).
+    func syncFromAPI() async {
+        guard KeychainService.hasCredentials else { return }
+        await syncCollections()
+        await syncCards()
+        lastSyncedAt = Date()
+    }
+
+    /// Re-sync only if it's been more than 5 minutes (used on foreground).
+    func syncIfNeeded() async {
+        guard KeychainService.hasCredentials else { return }
+        if let last = lastSyncedAt, Date().timeIntervalSince(last) < 300 { return }
+        await syncFromAPI()
     }
 
     // MARK: - Share Extension Bridge
@@ -180,6 +326,20 @@ final class AppStore: ObservableObject {
     // MARK: - Seeding
 
     private func seedIfNeeded() {
+        // Real (logged-in) users get their data from the API; only seed the
+        // mock/offline experience when there are no credentials.
+        guard !KeychainService.hasCredentials else { return }
+
+        #if DEBUG
+        // Under UI tests, CoreData persists across test runs on the simulator.
+        // Reset to deterministic state so every test sees identical mock data.
+        if ProcessInfo.processInfo.arguments.contains("UITEST") {
+            fetchCards().forEach { context.delete($0) }
+            fetchCollections().forEach { context.delete($0) }
+            save()
+        }
+        #endif
+
         guard fetchCollections().isEmpty else { return }
         for mock in Collection.mockCollections {
             insert(mock)
@@ -219,6 +379,27 @@ final class AppStore: ObservableObject {
         return (try? context.fetch(request))?.first
     }
 
+    private func cdCard(serverID: String) -> NSManagedObject? {
+        let request = NSFetchRequest<NSManagedObject>(entityName: "CDCard")
+        request.predicate = NSPredicate(format: "serverID == %@", serverID)
+        request.fetchLimit = 1
+        return (try? context.fetch(request))?.first
+    }
+
+    private func cdCollection(id: UUID) -> NSManagedObject? {
+        let request = NSFetchRequest<NSManagedObject>(entityName: "CDCollection")
+        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        request.fetchLimit = 1
+        return (try? context.fetch(request))?.first
+    }
+
+    private func cdCollection(serverID: String) -> NSManagedObject? {
+        let request = NSFetchRequest<NSManagedObject>(entityName: "CDCollection")
+        request.predicate = NSPredicate(format: "serverID == %@", serverID)
+        request.fetchLimit = 1
+        return (try? context.fetch(request))?.first
+    }
+
     private func insert(_ collection: Collection) {
         let object = NSEntityDescription.insertNewObject(forEntityName: "CDCollection", into: context)
         object.setValue(collection.id, forKey: "id")
@@ -226,6 +407,7 @@ final class AppStore: ObservableObject {
         object.setValue(collection.description, forKey: "collectionDescription")
         object.setValue(collection.privacy.rawValue, forKey: "privacy")
         object.setValue(collection.createdAt, forKey: "createdAt")
+        object.setValue(collection.serverID, forKey: "serverID")
     }
 
     private func insert(_ card: Card) {
@@ -242,6 +424,7 @@ final class AppStore: ObservableObject {
         object.setValue(card.syncStatus.rawValue, forKey: "syncStatus")
         object.setValue(card.createdAt, forKey: "createdAt")
         object.setValue(card.collectionID, forKey: "collectionID")
+        object.setValue(card.serverID, forKey: "serverID")
     }
 
     private func save() {
@@ -275,7 +458,8 @@ final class AppStore: ObservableObject {
                 description: object.value(forKey: "collectionDescription") as? String ?? "",
                 cardCount: countByCollection[id] ?? 0,
                 privacy: CollectionPrivacy(rawValue: object.value(forKey: "privacy") as? String ?? "") ?? .private,
-                createdAt: object.value(forKey: "createdAt") as? Date ?? Date()
+                createdAt: object.value(forKey: "createdAt") as? Date ?? Date(),
+                serverID: object.value(forKey: "serverID") as? String
             )
         }
     }
@@ -293,7 +477,8 @@ final class AppStore: ObservableObject {
             tags: decodeTags(object.value(forKey: "tagsJSON") as? String),
             syncStatus: SyncStatus(rawValue: object.value(forKey: "syncStatus") as? String ?? "") ?? .synced,
             createdAt: object.value(forKey: "createdAt") as? Date ?? Date(),
-            collectionID: object.value(forKey: "collectionID") as? UUID
+            collectionID: object.value(forKey: "collectionID") as? UUID,
+            serverID: object.value(forKey: "serverID") as? String
         )
     }
 

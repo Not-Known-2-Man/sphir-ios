@@ -40,6 +40,8 @@ struct Collection: Identifiable, Hashable {
     var cardCount: Int
     var privacy: CollectionPrivacy
     var createdAt: Date
+    /// The folder's id on the backend (nil until synced).
+    var serverID: String?
 
     init(
         id: UUID = UUID(),
@@ -47,7 +49,8 @@ struct Collection: Identifiable, Hashable {
         description: String = "",
         cardCount: Int,
         privacy: CollectionPrivacy = .private,
-        createdAt: Date = Date()
+        createdAt: Date = Date(),
+        serverID: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -55,6 +58,7 @@ struct Collection: Identifiable, Hashable {
         self.cardCount = cardCount
         self.privacy = privacy
         self.createdAt = createdAt
+        self.serverID = serverID
     }
 }
 

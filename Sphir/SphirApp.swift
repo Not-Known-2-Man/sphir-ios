@@ -39,6 +39,7 @@ struct SphirApp: App {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 appStore.importPendingSharedCards()
+                Task { await appStore.syncIfNeeded() }
             }
         }
     }

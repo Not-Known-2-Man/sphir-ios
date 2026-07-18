@@ -48,6 +48,8 @@ struct Card: Identifiable, Hashable {
     var createdAt: Date
     /// The collection this card belongs to.
     var collectionID: UUID?
+    /// The card's id on the backend (nil until synced).
+    var serverID: String?
 
     init(
         id: UUID = UUID(),
@@ -61,7 +63,8 @@ struct Card: Identifiable, Hashable {
         tags: [String] = [],
         syncStatus: SyncStatus = .synced,
         createdAt: Date = Date(),
-        collectionID: UUID? = nil
+        collectionID: UUID? = nil,
+        serverID: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -75,6 +78,7 @@ struct Card: Identifiable, Hashable {
         self.syncStatus = syncStatus
         self.createdAt = createdAt
         self.collectionID = collectionID
+        self.serverID = serverID
     }
 }
 

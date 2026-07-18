@@ -2,8 +2,10 @@
 //  AuthSession.swift
 //  Sphir
 //
-//  Mock authentication state, persisted in UserDefaults. No real backend yet —
-//  signing in/up simply records the user locally and marks them logged in.
+//  Authentication state. Talks to the real API (AuthAPIService) with tokens
+//  in the Keychain; falls back to a deterministic mock under UITEST so UI
+//  tests don't hit the network. The cached display name/email live in
+//  UserDefaults so a returning user is greeted before the first fetch.
 //
 
 import SwiftUI
@@ -17,18 +19,18 @@ final class AuthSession: ObservableObject {
     /// Whether the user has completed onboarding (persists across sign-out).
     @Published private(set) var hasSeenOnboarding: Bool
 
-    private let loggedInKey = "auth.isLoggedIn"
+    private let isMock: Bool
     private let nameKey = "auth.userName"
     private let emailKey = "auth.userEmail"
     private let onboardingKey = "onboarding.hasSeen"
 
     init() {
         let args = ProcessInfo.processInfo.arguments
-        // "SHOW_ONBOARDING" forces the onboarding step on for UI tests.
         let forceOnboarding = args.contains("SHOW_ONBOARDING")
+        let defaults = UserDefaults.standard
 
         if args.contains("LOGGED_OUT") {
-            // Force the auth screen for UI tests.
+            isMock = true
             isLoggedIn = false
             userName = ""
             userEmail = ""
@@ -36,18 +38,26 @@ final class AuthSession: ObservableObject {
             return
         }
         if args.contains("UITEST") {
-            // Deterministic logged-in user for the rest of the UI tests.
+            isMock = true
             isLoggedIn = true
             userName = "Alex"
             userEmail = "alex@sphir.app"
             hasSeenOnboarding = !forceOnboarding
             return
         }
-        let defaults = UserDefaults.standard
-        isLoggedIn = defaults.bool(forKey: loggedInKey)
+
+        isMock = false
+        isLoggedIn = KeychainService.hasCredentials
         userName = defaults.string(forKey: nameKey) ?? ""
         userEmail = defaults.string(forKey: emailKey) ?? ""
         hasSeenOnboarding = defaults.bool(forKey: onboardingKey)
+
+        // Sign out if the API rejects the token (401).
+        NotificationCenter.default.addObserver(
+            forName: .sphirUnauthorized, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.handleUnauthorized() }
+        }
     }
 
     // MARK: - Derived
@@ -55,33 +65,47 @@ final class AuthSession: ObservableObject {
     var displayName: String { userName.isEmpty ? "there" : userName }
     var initial: String { String(displayName.first ?? "S").uppercased() }
 
-    // MARK: - Actions (mock)
+    // MARK: - Actions
 
-    func signIn(email: String) {
-        let stored = UserDefaults.standard.string(forKey: nameKey)
-        userEmail = email
-        userName = (stored?.isEmpty == false) ? stored! : Self.name(fromEmail: email)
-        isLoggedIn = true
-        persist()
-    }
+    func signIn(email: String, password: String) async throws {
+        guard !isMock else { mockSignIn(email: email); return }
 
-    func signUp(name: String, email: String) {
-        userName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let response = try await AuthAPIService.signIn(email: email, password: password)
+        let name = [response.firstName, response.lastName]
+            .compactMap { $0 }.filter { !$0.isEmpty }
+            .joined(separator: " ")
+        userName = name.isEmpty ? Self.name(fromEmail: email) : name
         userEmail = email
         isLoggedIn = true
-        persist()
+        cacheProfile()
     }
 
-    func signOut() {
-        // Clears the session only. Onboarding stays "seen" so returning users
-        // who sign in again go straight to the dashboard.
-        isLoggedIn = false
-        userName = ""
+    func signUp(name: String, email: String, password: String) async throws {
+        guard !isMock else { mockSignUp(name: name, email: email); return }
+
+        try await AuthAPIService.signUp(email: email, password: password)
+        // Account created → sign in automatically.
+        try await signIn(email: email, password: password)
+    }
+
+    func continueAsGuest() async throws {
+        guard !isMock else {
+            userName = "Guest"
+            isLoggedIn = true
+            return
+        }
+        try await AuthAPIService.continueAsGuest()
+        userName = "Guest"
         userEmail = ""
-        let defaults = UserDefaults.standard
-        defaults.removeObject(forKey: loggedInKey)
-        defaults.removeObject(forKey: nameKey)
-        defaults.removeObject(forKey: emailKey)
+        isLoggedIn = true
+        // Guest session is not persisted to Keychain — next launch shows AuthView again.
+    }
+
+    func signOut() async {
+        if !isMock {
+            await AuthAPIService.signOut()
+        }
+        clearSession()
     }
 
     /// Mark onboarding complete (after the user taps "Get Started").
@@ -96,11 +120,50 @@ final class AuthSession: ObservableObject {
         UserDefaults.standard.removeObject(forKey: onboardingKey)
     }
 
-    private func persist() {
+    // MARK: - Private
+
+    private func handleUnauthorized() {
+        guard isLoggedIn else { return }
+        clearSession()   // Keychain already cleared by NetworkService.
+    }
+
+    private func clearSession() {
+        isLoggedIn = false
+        userName = ""
+        userEmail = ""
+        KeychainService.clear()
         let defaults = UserDefaults.standard
-        defaults.set(true, forKey: loggedInKey)
+        defaults.removeObject(forKey: nameKey)
+        defaults.removeObject(forKey: emailKey)
+    }
+
+    private func cacheProfile() {
+        let defaults = UserDefaults.standard
         defaults.set(userName, forKey: nameKey)
         defaults.set(userEmail, forKey: emailKey)
+    }
+
+    // MARK: - Mock (UITEST)
+
+    private func mockSignIn(email: String) {
+        let stored = UserDefaults.standard.string(forKey: nameKey)
+        userEmail = email
+        userName = (stored?.isEmpty == false) ? stored! : Self.name(fromEmail: email)
+        isLoggedIn = true
+    }
+
+    private func mockSignUp(name: String, email: String) {
+        userName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        userEmail = email
+        isLoggedIn = true
+    }
+
+    // MARK: - Helpers
+
+    private static func splitName(_ name: String) -> (first: String, last: String) {
+        let parts = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(separator: " ", maxSplits: 1).map(String.init)
+        return (parts.first ?? "", parts.count > 1 ? parts[1] : "")
     }
 
     private static func name(fromEmail email: String) -> String {
