@@ -55,6 +55,11 @@ final class NetworkService {
             return URL(string: "http://localhost:3000")!
         }
         #endif
+        // Pilot backend override: set SphirAPIBaseURL in Info.plist; empty means production.
+        if let value = Bundle.main.object(forInfoDictionaryKey: "SphirAPIBaseURL") as? String,
+           !value.isEmpty, let url = URL(string: value) {
+            return url
+        }
         return URL(string: "https://api.sphir.io")!
     }()
     private let session: URLSession
