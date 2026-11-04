@@ -18,6 +18,10 @@ struct CardFormView: View {
     @State private var selectedCollectionID: UUID?
     @State private var showSuccess = false
 
+    private var canSave: Bool {
+        !title.isEmpty && selectedCollectionID != nil
+    }
+
     private var showsURLField: Bool {
         flow.selectedSource == .url
     }
@@ -110,6 +114,11 @@ struct CardFormView: View {
                 selectedCollectionID = appStore.collections.first?.id
             }
         }
+        .onChange(of: appStore.collections) { _, newCollections in
+            if selectedCollectionID == nil {
+                selectedCollectionID = newCollections.first?.id
+            }
+        }
     }
 
     // MARK: - Collection Picker
@@ -179,8 +188,9 @@ struct CardFormView: View {
                 } label: {
                     Text("Done")
                         .font(SphirFont.body(16, weight: .semibold))
-                        .foregroundColor(SphirColor.taupe)
+                        .foregroundColor(canSave ? SphirColor.taupe : SphirColor.mutedText)
                 }
+                .disabled(!canSave)
                 .accessibilityIdentifier("navDoneButton")
             }
         }
@@ -290,8 +300,8 @@ struct CardFormView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("formDoneButton")
-        .disabled(title.isEmpty)
-        .opacity(title.isEmpty ? 0.5 : 1)
+        .disabled(!canSave)
+        .opacity(canSave ? 1 : 0.5)
         .padding(.horizontal, 20)
         .padding(.top, 12)
         .padding(.bottom, 12)

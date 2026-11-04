@@ -29,6 +29,23 @@ final class ShareViewController: UIViewController {
         }
     }
 
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        // Set initial dark background to hide Safari Share Sheet
+        updateBackground(for: .options)
+    }
+
+    private func updateBackground(for screen: ExtensionScreen) {
+        let targetColor = UIColor.black.withAlphaComponent(0.85)
+        
+        view.backgroundColor = targetColor
+        var current: UIView? = view
+        while let parent = current?.superview {
+            parent.backgroundColor = targetColor
+            current = parent
+        }
+    }
+
     private func presentShareUI() {
         let stored = SharedInbox.loadCollections()
         let collections = stored.isEmpty ? SharedInbox.fallbackCollections : stored
@@ -38,6 +55,12 @@ final class ShareViewController: UIViewController {
             collections: collections,
             onSave: { [weak self] payload in
                 self?.save(payload) ?? UUID()
+            },
+            onUpdateCollection: { cardID, newCollectionID in
+                SharedInbox.updateCollection(forCardID: cardID, newCollectionID: newCollectionID)
+            },
+            onScreenChange: { [weak self] screen in
+                self?.updateBackground(for: screen)
             },
             onView: { [weak self] cardID in
                 self?.openCard(cardID)
@@ -64,6 +87,7 @@ final class ShareViewController: UIViewController {
     private func loadSharedContent() async -> SharedContent {
         var urlString: String?
         var text: String?
+        var sharedImageData: Data?
 
         guard let items = extensionContext?.inputItems as? [NSExtensionItem] else {
             return SharedContent()
@@ -81,13 +105,16 @@ final class ShareViewController: UIViewController {
                    provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
                     urlString = await loadWebURL(provider)
                 } else if text == nil,
-                          provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
+                           provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
                     text = await loadText(provider)
+                } else if sharedImageData == nil,
+                           provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
+                    sharedImageData = await loadImage(provider)
                 }
             }
         }
 
-        return SharedContent(urlString: urlString, text: text)
+        return SharedContent(urlString: urlString, text: text, sharedImageData: sharedImageData)
     }
 
     private func loadWebURL(_ provider: NSItemProvider) async -> String? {
@@ -110,6 +137,22 @@ final class ShareViewController: UIViewController {
                     continuation.resume(returning: string)
                 } else if let data = data as? Data, let string = String(data: data, encoding: .utf8) {
                     continuation.resume(returning: string)
+                } else {
+                    continuation.resume(returning: nil)
+                }
+            }
+        }
+    }
+
+    private func loadImage(_ provider: NSItemProvider) async -> Data? {
+        await withCheckedContinuation { continuation in
+            provider.loadItem(forTypeIdentifier: UTType.image.identifier, options: nil) { data, _ in
+                if let url = data as? URL, let d = try? Data(contentsOf: url) {
+                    continuation.resume(returning: d)
+                } else if let image = data as? UIImage, let d = image.pngData() {
+                    continuation.resume(returning: d)
+                } else if let data = data as? Data {
+                    continuation.resume(returning: data)
                 } else {
                     continuation.resume(returning: nil)
                 }
@@ -141,8 +184,19 @@ final class ShareViewController: UIViewController {
     /// Open the saved card in the app via its deep link, then finish.
     private func openCard(_ id: UUID) {
         if let url = URL(string: "sphir://card/\(id.uuidString)") {
-            extensionContext?.open(url) { [weak self] _ in
-                self?.finish()
+            self.extensionContext?.open(url) { [weak self] success in
+                if success {
+                    self?.finish()
+                } else {
+                    // Fallback to the UIApplication selector reflection bypass hack
+                    if let applicationClass = NSClassFromString("UIApplication") as? NSObject.Type {
+                        let sharedApplication = applicationClass.perform(Selector(("sharedApplication")))?
+                            .takeUnretainedValue()
+                        let nsURL = url as NSURL
+                        _ = sharedApplication?.perform(Selector(("openURL:")), with: nsURL)
+                    }
+                    self?.finish()
+                }
             }
         } else {
             finish()

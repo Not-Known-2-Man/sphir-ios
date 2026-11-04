@@ -86,6 +86,27 @@ enum SharedInbox {
         defaults?.set(data, forKey: pendingCardsKey)
     }
 
+    static func updateCollection(forCardID id: UUID, newCollectionID: UUID?) {
+        var pending = loadPendingCards()
+        if let idx = pending.firstIndex(where: { $0.id == id }) {
+            let old = pending[idx]
+            let updated = SharedCardDTO(
+                id: old.id,
+                title: old.title,
+                description: old.description,
+                urlString: old.urlString,
+                bodyText: old.bodyText,
+                imageData: old.imageData,
+                sourceAppRaw: old.sourceAppRaw,
+                collectionID: newCollectionID,
+                createdAt: old.createdAt
+            )
+            pending[idx] = updated
+            guard let data = try? JSONEncoder().encode(pending) else { return }
+            defaults?.set(data, forKey: pendingCardsKey)
+        }
+    }
+
     static func loadPendingCards() -> [SharedCardDTO] {
         guard let data = defaults?.data(forKey: pendingCardsKey),
               let decoded = try? JSONDecoder().decode([SharedCardDTO].self, from: data)

@@ -173,17 +173,62 @@ final class AppStore: ObservableObject {
 
     // MARK: - Collections API sync
 
-    /// Fetch folders from the API and merge them into CoreData (upsert by
-    /// serverID). Keeps local cache on failure.
+    /// Fetch folders from the API, wipe all local CoreData collections, and
+    /// insert the fresh API response. This prevents duplicates from stale cache
+    /// or seed data — MySQL is the single source of truth.
     func syncCollections() async {
         guard KeychainService.hasCredentials else { return }
+        
+        // 1. Upload local collections that haven't been synced yet
+        let localCollections = fetchCollections()
+        for object in localCollections {
+            if (object.value(forKey: "serverID") as? String) == nil {
+                let name = object.value(forKey: "name") as? String ?? ""
+                let desc = object.value(forKey: "collectionDescription") as? String ?? ""
+                let privacy = object.value(forKey: "privacy") as? String ?? "private"
+                do {
+                    let remote = try await CollectionAPIService.createCollection(
+                        name: name,
+                        description: desc,
+                        privacy: privacy
+                    )
+                    if let serverID = remote.serverID {
+                        object.setValue(serverID, forKey: "serverID")
+                    }
+                } catch {
+                    // Skip if upload fails; keep it local (it won't have a serverID)
+                }
+            }
+        }
+        save()
+        
+        // 2. Fetch and reconcile
         do {
             let remote = try await CollectionAPIService.fetchCollections()
+            
+            let existingCollections = fetchCollections()
+            var existingByServerID: [String: NSManagedObject] = [:]
+            for object in existingCollections {
+                if let sID = object.value(forKey: "serverID") as? String {
+                    existingByServerID[sID] = object
+                }
+            }
+            
+            let remoteServerIDs = Set(remote.compactMap { $0.serverID })
+            
+            // Delete local synced collections that are no longer on the server
+            for (sID, object) in existingByServerID {
+                if !remoteServerIDs.contains(sID) {
+                    context.delete(object)
+                }
+            }
+            
+            // Update fields of existing collections (preserving local UUID/id) or insert new ones
             for collection in remote {
-                if let serverID = collection.serverID, let object = cdCollection(serverID: serverID) {
-                    object.setValue(collection.name, forKey: "name")
-                    object.setValue(collection.description, forKey: "collectionDescription")
-                    object.setValue(collection.privacy.rawValue, forKey: "privacy")
+                if let sID = collection.serverID, let existingObject = existingByServerID[sID] {
+                    existingObject.setValue(collection.name, forKey: "name")
+                    existingObject.setValue(collection.description, forKey: "collectionDescription")
+                    existingObject.setValue(collection.privacy.rawValue, forKey: "privacy")
                 } else {
                     insert(collection)
                 }
@@ -218,29 +263,80 @@ final class AppStore: ObservableObject {
 
     // MARK: - Cards API sync
 
-    /// Fetch businesses from the API and merge them into CoreData (upsert by
-    /// serverID, filing each under its folder when known). Keeps cache on fail.
+    /// Fetch cards from the API, wipe all local CoreData cards, and insert the
+    /// fresh API response. Must run after syncCollections() so folder lookups
+    /// by serverID resolve against the freshly inserted collections.
     func syncCards() async {
         guard KeychainService.hasCredentials else { return }
+        
+        // 1. Upload local cards that are offline or haven't been synced yet
+        let localCards = fetchCards()
+        for object in localCards {
+            let status = object.value(forKey: "syncStatus") as? String
+            let serverID = object.value(forKey: "serverID") as? String
+            
+            if status == SyncStatus.offline.rawValue || serverID == nil {
+                let card = card(from: object)
+                let folderServerID = card.collectionID
+                    .flatMap { cdCollection(id: $0)?.value(forKey: "serverID") as? String }
+                do {
+                    let remote = try await CardAPIService.createCard(card, folderServerID: folderServerID)
+                    if let remoteServerID = remote.serverID {
+                        object.setValue(remoteServerID, forKey: "serverID")
+                        object.setValue(SyncStatus.synced.rawValue, forKey: "syncStatus")
+                    }
+                } catch {
+                    // Skip if upload fails; keep it local/offline
+                }
+            }
+        }
+        save()
+        
+        // 2. Fetch and reconcile
         do {
             let remote = try await CardAPIService.fetchCards()
+            let localCards = fetchCards()
+            var remoteServerIDs = Set<String>()
+            
             for dto in remote {
-                var card = dto.toCard()
-                if let folderServerID = dto.folderServerID,
-                   let folder = cdCollection(serverID: folderServerID) {
-                    card.collectionID = folder.value(forKey: "id") as? UUID
-                }
-                if let serverID = card.serverID, let object = cdCard(serverID: serverID) {
-                    object.setValue(card.title, forKey: "title")
-                    object.setValue(card.description, forKey: "cardDescription")
-                    object.setValue(card.content, forKey: "content")
-                    object.setValue(encodeTags(card.tags), forKey: "tagsJSON")
-                    object.setValue(SyncStatus.synced.rawValue, forKey: "syncStatus")
-                    object.setValue(card.collectionID, forKey: "collectionID")
+                guard let remoteID = dto.serverID else { continue }
+                remoteServerIDs.insert(remoteID)
+                
+                if let existingObject = localCards.first(where: { ($0.value(forKey: "serverID") as? String) == remoteID }) {
+                    // Update text fields of the existing local card, leaving imageData untouched!
+                    existingObject.setValue(dto.title.isEmpty ? "Untitled" : dto.title, forKey: "title")
+                    existingObject.setValue(dto.description, forKey: "cardDescription")
+                    existingObject.setValue(dto.website, forKey: "content")
+                    existingObject.setValue(encodeTags(dto.tags), forKey: "tagsJSON")
+                    
+                    if let folderServerID = dto.folderServerID,
+                       let folder = cdCollection(serverID: folderServerID) {
+                        existingObject.setValue(folder.value(forKey: "id") as? UUID, forKey: "collectionID")
+                    } else {
+                        existingObject.setValue(nil, forKey: "collectionID")
+                    }
+                    existingObject.setValue(SyncStatus.synced.rawValue, forKey: "syncStatus")
                 } else {
+                    // Create new local card
+                    var card = dto.toCard()
+                    if let folderServerID = dto.folderServerID,
+                       let folder = cdCollection(serverID: folderServerID) {
+                        card.collectionID = folder.value(forKey: "id") as? UUID
+                    }
                     insert(card)
                 }
             }
+            
+            // Delete local cards that were deleted on the server
+            for object in localCards {
+                let status = object.value(forKey: "syncStatus") as? String
+                let serverID = object.value(forKey: "serverID") as? String
+                
+                if status == SyncStatus.synced.rawValue, let sid = serverID, !remoteServerIDs.contains(sid) {
+                    context.delete(object)
+                }
+            }
+            
             save()
             reload()
         } catch {
@@ -249,12 +345,16 @@ final class AppStore: ObservableObject {
     }
 
     /// Push a just-created card to the API: mark syncing, then synced/offline.
+    /// Resolves the collection's MySQL serverID on the main actor before entering
+    /// the async Task so the POST body carries the correct folder_id.
     private func pushNewCard(_ card: Card) {
         guard KeychainService.hasCredentials else { return }
         setSyncStatus(.syncing, for: card.id)
+        let folderServerID = card.collectionID
+            .flatMap { cdCollection(id: $0)?.value(forKey: "serverID") as? String }
         Task {
             do {
-                let remote = try await CardAPIService.createCard(card)
+                let remote = try await CardAPIService.createCard(card, folderServerID: folderServerID)
                 if let object = cdCard(id: card.id) {
                     object.setValue(remote.serverID, forKey: "serverID")
                     object.setValue(SyncStatus.synced.rawValue, forKey: "syncStatus")
@@ -307,6 +407,7 @@ final class AppStore: ObservableObject {
         for dto in pending {
             let isLink = !dto.urlString.isEmpty
             let title = dto.title.isEmpty ? (isLink ? "Shared Link" : "Shared Text") : dto.title
+            
             let card = Card(
                 title: title,
                 description: dto.description,

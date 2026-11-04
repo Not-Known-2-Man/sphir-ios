@@ -58,6 +58,9 @@ struct DashboardView: View {
                     .padding(.top, 16)
                     .padding(.bottom, 32)
                 }
+                .refreshable {
+                    await appStore.syncFromAPI()
+                }
             }
             .background(SphirColor.background.ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
@@ -291,6 +294,12 @@ struct DashboardView: View {
         }
     }
 
+    private var uncategorizedCards: [Card] {
+        appStore.cards
+            .filter { $0.collectionID == nil }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
     private var matchingCards: [Card] {
         guard isSearching else { return [] }
         return appStore.cards
@@ -317,14 +326,33 @@ struct DashboardView: View {
                 EmptyStateView(
                     icon: "square.stack.3d.up",
                     title: "No collections yet",
-                    message: "Tap “+ Collection” to create your first one."
+                    message: "Tap \"+Collection\" to create your first one."
                 )
+            }
+
+            if !isSearching && !uncategorizedCards.isEmpty {
+                uncategorizedSection
             }
 
             if isSearching {
                 matchingCardsSection
             }
         }
+    }
+
+    private var uncategorizedSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Uncategorized")
+                .font(SphirFont.body(14, weight: .semibold))
+                .foregroundColor(SphirColor.mutedText)
+            ForEach(uncategorizedCards) { card in
+                NavigationLink(value: card) {
+                    CardRowView(card: card)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var collectionsGrid: some View {

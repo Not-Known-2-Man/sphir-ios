@@ -65,7 +65,7 @@ enum AuthAPIService {
             body: SignInRequest(email: email, password: password),
             authorized: false
         )
-        KeychainService.saveCredentials(accessToken: auth.token, uid: auth.uid)
+        KeychainService.saveCredentials(accessToken: auth.token, uid: auth.uid, client: auth.client)
         return SignInResponse(
             token: auth.token,
             uid: auth.uid,

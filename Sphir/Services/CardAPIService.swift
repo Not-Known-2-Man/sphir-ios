@@ -92,13 +92,20 @@ private struct BusinessRequest: Encodable {
     let website: String
     let email: String
     let tags: [String]
+    let folderID: String?
 
-    init(card: Card) {
+    enum CodingKeys: String, CodingKey {
+        case title, description, website, email, tags
+        case folderID = "folder_id"
+    }
+
+    init(card: Card, folderServerID: String? = nil) {
         title = card.title
         description = card.description
         website = card.content
         email = ""
         tags = card.tags
+        folderID = folderServerID
     }
 }
 
@@ -113,11 +120,12 @@ enum CardAPIService {
     }
 
     /// POST /api/v1/businesses — returns the created business (with id).
-    static func createCard(_ card: Card) async throws -> Card {
+    /// Pass the MySQL folder serverID so folder_id is stored correctly.
+    static func createCard(_ card: Card, folderServerID: String? = nil) async throws -> Card {
         let dto: BusinessDTO = try await NetworkService.shared.request(
             "/api/v1/businesses",
             method: .post,
-            body: BusinessRequest(card: card)
+            body: BusinessRequest(card: card, folderServerID: folderServerID)
         )
         return dto.toCard()
     }

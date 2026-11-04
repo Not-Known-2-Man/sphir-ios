@@ -13,6 +13,7 @@ enum KeychainService {
     enum Key: String, CaseIterable {
         case accessToken = "access_token"
         case uid
+        case client
     }
 
     private static let service = "com.Sphir.auth"
@@ -46,9 +47,10 @@ enum KeychainService {
 
     // MARK: - Convenience
 
-    static func saveCredentials(accessToken: String, uid: String) {
+    static func saveCredentials(accessToken: String, uid: String, client: String? = nil) {
         save(accessToken, for: .accessToken)
         save(uid, for: .uid)
+        if let client { save(client, for: .client) }
     }
 
     static func clear() {
@@ -63,10 +65,12 @@ enum KeychainService {
     static var authHeaders: [String: String] {
         guard let token = load(.accessToken),
               let uid = load(.uid) else { return [:] }
-        return [
+        var headers = [
             "Authorization": "Bearer \(token)",
             "uid": uid
         ]
+        if let client = load(.client) { headers["client"] = client }
+        return headers
     }
 
     // MARK: - Private

@@ -63,11 +63,21 @@
 			);
 			target = 5DE4D5483000879700E0A065 /* SphirShare */;
 		};
+		5DE4D61E300AFCCB00E0A065 /* Exceptions for "Sphir" folder in "Sphir" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 5DE4D4E13000720300E0A065 /* Sphir */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		5DE4D4E43000720300E0A065 /* Sphir */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				5DE4D61E300AFCCB00E0A065 /* Exceptions for "Sphir" folder in "Sphir" target */,
+			);
 			path = Sphir;
 			sourceTree = "<group>";
 		};
@@ -499,6 +509,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Sphir/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Sphir uses the camera to capture photos for your cards";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -532,6 +543,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Sphir/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Sphir uses the camera to capture photos for your cards";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
