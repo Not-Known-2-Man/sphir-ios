@@ -64,10 +64,10 @@ final class CardFlowCoordinator: ObservableObject {
 
     /// Collapse the entire flow back to the dashboard.
     func dismissAll() {
-        showForm = false
-        showScreenshotForm = false
-        showPhotoForm = false
-        showSource = false
+        // Close only the root sheet: UIKit tears down everything stacked on
+        // it in one dismissal. Flipping every flag at once raced the nested
+        // dismissals and could leave "+ Card" unable to present again.
+        // start() resets the child flags before the next run.
         showType = false
     }
 

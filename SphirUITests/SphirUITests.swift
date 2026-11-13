@@ -83,6 +83,48 @@ final class SphirUITests: XCTestCase {
         )
     }
 
+    /// Regression: after saving a card, "+ Card" must open the flow again.
+    @MainActor
+    func testAddCardTwiceInARow() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST"]
+        app.launch()
+
+        for title in ["First Card", "Second Card"] {
+            let addCard = app.buttons["addCardButton"]
+            expectation(for: NSPredicate(format: "isHittable == true"), evaluatedWith: addCard)
+            waitForExpectations(timeout: 10)
+            addCard.tap()
+
+            let textType = app.buttons["cardType_text"]
+            XCTAssertTrue(textType.waitForExistence(timeout: 8), "Card flow should open for \(title).")
+            textType.tap()
+            let urlSource = app.buttons["cardSource_url"]
+            XCTAssertTrue(urlSource.waitForExistence(timeout: 5))
+            urlSource.tap()
+
+            // Like a real user: paste a link and hit Return (non-resolving
+            // host so the metadata fetch can't overwrite the title).
+            let urlField = app.textFields["cardURLField"]
+            XCTAssertTrue(urlField.waitForExistence(timeout: 8))
+            urlField.tap()
+            if !app.keyboards.element.waitForExistence(timeout: 2) { urlField.tap() }
+            urlField.typeText("https://example.invalid\n")
+
+            let titleField = app.textFields["cardTitleField"]
+            XCTAssertTrue(titleField.waitForExistence(timeout: 8))
+            titleField.tap()
+            if !app.keyboards.element.waitForExistence(timeout: 2) { titleField.tap() }
+            titleField.typeText(title)
+            app.buttons["navDoneButton"].tap()
+
+            XCTAssertTrue(app.staticTexts["Card Saved!"].waitForExistence(timeout: 8))
+            let back = app.buttons["backToDashboardButton"]
+            if back.waitForExistence(timeout: 1) { back.tap() }
+            XCTAssertTrue(app.staticTexts["Card Saved!"].waitForNonExistence(timeout: 8))
+        }
+    }
+
     @MainActor
     func testCreateCollectionAppearsInGrid() throws {
         let app = XCUIApplication()
