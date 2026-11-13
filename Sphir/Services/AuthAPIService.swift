@@ -45,11 +45,15 @@ private struct SignUpRequest: Encodable {
     let passwordConfirmation: String
     let accountType: String
     let domain: String
+    let firstName: String
+    let lastName: String
 
     enum CodingKeys: String, CodingKey {
         case email, password, domain
         case passwordConfirmation = "password_confirmation"
         case accountType = "account_type"
+        case firstName = "first_name"
+        case lastName = "last_name"
     }
 }
 
@@ -75,7 +79,11 @@ enum AuthAPIService {
     }
 
     /// POST /api/v1/auth — creates the account (does not sign in automatically).
-    static func signUp(email: String, password: String) async throws {
+    static func signUp(name: String, email: String, password: String) async throws {
+        // "Ana Maria Lopez" -> first "Ana", last "Maria Lopez".
+        let parts = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(separator: " ", maxSplits: 1)
+            .map(String.init)
         let _: AuthResponse = try await NetworkService.shared.request(
             "/api/v1/auth",
             method: .post,
@@ -84,7 +92,9 @@ enum AuthAPIService {
                 password: password,
                 passwordConfirmation: password,
                 accountType: "personal",
-                domain: "sphir.io"
+                domain: "sphir.io",
+                firstName: parts.first ?? "",
+                lastName: parts.count > 1 ? parts[1] : ""
             ),
             authorized: false
         )

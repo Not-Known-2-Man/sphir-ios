@@ -83,7 +83,7 @@ final class AuthSession: ObservableObject {
     func signUp(name: String, email: String, password: String) async throws {
         guard !isMock else { mockSignUp(name: name, email: email); return }
 
-        try await AuthAPIService.signUp(email: email, password: password)
+        try await AuthAPIService.signUp(name: name, email: email, password: password)
         // Account created → sign in automatically.
         try await signIn(email: email, password: password)
     }
