@@ -58,7 +58,11 @@ enum KeychainService {
     }
 
     static var hasCredentials: Bool {
-        load(.accessToken) != nil && load(.uid) != nil
+        // Mock UI-test runs share the simulator Keychain with real sessions;
+        // without this guard they synced mock data into the real account.
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("UITEST") || args.contains("LOGGED_OUT") { return false }
+        return load(.accessToken) != nil && load(.uid) != nil
     }
 
     /// Auth headers to attach to protected requests.

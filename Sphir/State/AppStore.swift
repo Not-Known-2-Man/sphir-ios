@@ -427,9 +427,12 @@ final class AppStore: ObservableObject {
     // MARK: - Seeding
 
     private func seedIfNeeded() {
-        // Real (logged-in) users get their data from the API; only seed the
-        // mock/offline experience when there are no credentials.
-        guard !KeychainService.hasCredentials else { return }
+        // Sample data exists only for the mock UI-test experience. Never seed
+        // in real mode: after sign-up, syncCollections uploads every local
+        // collection without a serverID, which would push the samples into
+        // the user's real account.
+        let args = ProcessInfo.processInfo.arguments
+        guard args.contains("UITEST") || args.contains("LOGGED_OUT") else { return }
 
         #if DEBUG
         // Under UI tests, CoreData persists across test runs on the simulator.
