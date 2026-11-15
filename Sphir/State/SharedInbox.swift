@@ -32,6 +32,9 @@ struct SharedCardDTO: Codable, Identifiable, Hashable {
     let sourceAppRaw: String
     let collectionID: UUID?
     let createdAt: Date
+    /// Tags chosen in the share sheet. Optional so cards queued by an older
+    /// build still decode.
+    let tags: [String]?
 
     init(
         id: UUID,
@@ -42,7 +45,8 @@ struct SharedCardDTO: Codable, Identifiable, Hashable {
         imageData: Data? = nil,
         sourceAppRaw: String = "safari",
         collectionID: UUID?,
-        createdAt: Date
+        createdAt: Date,
+        tags: [String]? = nil
     ) {
         self.id = id
         self.title = title
@@ -53,6 +57,7 @@ struct SharedCardDTO: Codable, Identifiable, Hashable {
         self.sourceAppRaw = sourceAppRaw
         self.collectionID = collectionID
         self.createdAt = createdAt
+        self.tags = tags
     }
 }
 

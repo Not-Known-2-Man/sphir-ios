@@ -165,6 +165,7 @@ final class ShareViewController: UIViewController {
     /// Enqueue the card to the App Group and return its id (does not finish).
     private func save(_ payload: SharePayload) -> UUID {
         let isLink = !(payload.urlString ?? "").isEmpty
+        let isImage = !isLink && payload.bodyText == nil && payload.imageData != nil
         let id = UUID()
         let card = SharedCardDTO(
             id: id,
@@ -173,9 +174,10 @@ final class ShareViewController: UIViewController {
             urlString: payload.urlString ?? "",
             bodyText: isLink ? "" : (payload.bodyText ?? ""),
             imageData: payload.imageData,
-            sourceAppRaw: isLink ? "safari" : "messages",
+            sourceAppRaw: isLink ? "safari" : (isImage ? "photos" : "messages"),
             collectionID: payload.collectionID,
-            createdAt: Date()
+            createdAt: Date(),
+            tags: payload.tags
         )
         SharedInbox.enqueueCard(card)
         return id

@@ -129,7 +129,9 @@ extension CardType {
 extension SourceApp {
     var label: String {
         switch self {
-        case .safari:     return "Safari"
+        // Raw value stays "safari" for stored cards; links can come from any
+        // browser or app, so the label is neutral.
+        case .safari:     return "Web"
         case .mail:       return "Mail"
         case .messages:   return "Messages"
         case .photos:     return "Photos"
@@ -140,7 +142,7 @@ extension SourceApp {
     /// SF Symbol representing the source app.
     var iconName: String {
         switch self {
-        case .safari:     return "safari"
+        case .safari:     return "globe"
         case .mail:       return "envelope"
         case .messages:   return "message"
         case .photos:     return "photo"

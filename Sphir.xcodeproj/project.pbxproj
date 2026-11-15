@@ -56,6 +56,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		5DE4D7A1300B000100E0A065 /* Exceptions for "Sphir" folder in "SphirShare" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Services/OCRService.swift,
+			);
+			target = 5DE4D5483000879700E0A065 /* SphirShare */;
+		};
 		5DE4D5543000879700E0A065 /* Exceptions for "SphirShare" folder in "SphirShare" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -77,6 +84,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				5DE4D61E300AFCCB00E0A065 /* Exceptions for "Sphir" folder in "Sphir" target */,
+				5DE4D7A1300B000100E0A065 /* Exceptions for "Sphir" folder in "SphirShare" target */,
 			);
 			path = Sphir;
 			sourceTree = "<group>";

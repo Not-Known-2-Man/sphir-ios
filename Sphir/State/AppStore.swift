@@ -415,6 +415,7 @@ final class AppStore: ObservableObject {
                 cardType: .text,
                 sourceApp: SourceApp(rawValue: dto.sourceAppRaw) ?? .safari,
                 imageData: dto.imageData,
+                tags: dto.tags ?? [],
                 collectionID: resolveCollectionID(dto.collectionID)
             )
             insert(card)

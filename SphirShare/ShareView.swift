@@ -35,6 +35,7 @@ struct SharePayload {
     let urlString: String?
     let bodyText: String?
     let imageData: Data?
+    let tags: [String]
 }
 
 struct ShareView: View {
@@ -65,6 +66,9 @@ struct ShareView: View {
 
     // Success & Dismiss state
     @State private var savedCardID: UUID?
+    /// Real time from opening the share sheet to saving, shown on success.
+    @State private var startedAt = Date()
+    @State private var elapsedSeconds = 0
     @State private var checkmarkScale: CGFloat = 0.3
     @State private var circlePulse: CGFloat = 1.0
     @State private var countdownRemaining = 3
@@ -119,11 +123,20 @@ struct ShareView: View {
             }
             // Seed initial tags
             if content.isLink {
-                tags = ["Safari", "Web Link"]
+                // iOS does not tell the extension which app shared the link.
+                tags = ["Web Link"]
+            } else if content.isImage {
+                tags = ["Image"]
             } else {
-                tags = ["Shared Text", "Inbox"]
+                tags = ["Text"]
             }
             
+            // Start loading the crop tool's content now, while the user picks
+            // an option.
+            if webViewInstance == nil {
+                webViewInstance = WebView.makeWebView(content: content)
+            }
+
             // Pre-fetch webpage metadata in background
             if content.isLink, let urlString = content.urlString {
                 Task {
@@ -158,17 +171,11 @@ struct ShareView: View {
 
                 // Header
                 HStack(spacing: 8) {
-                    Circle()
-                        .fill(ShareColor.taupe)
-                        .frame(width: 24, height: 24)
-                        .overlay(
-                            Text("S")
-                                .font(.system(size: 13, weight: .bold, design: .serif))
-                                .foregroundColor(.white)
-                        )
-                    Text("Sphir")
-                        .font(ShareFont.heading(16, weight: .bold))
-                        .foregroundColor(ShareColor.taupe)
+                    Image("SphirLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: 20)
+                        .accessibilityLabel("Sphir")
                     Text("snippet")
                         .font(ShareFont.body(12, weight: .bold))
                         .foregroundColor(ShareColor.textPrimary)
@@ -199,7 +206,7 @@ struct ShareView: View {
                             .font(ShareFont.body(11))
                             .foregroundColor(ShareColor.mutedText)
                     } else if content.isLink {
-                        Text("Received from Safari")
+                        Text("Received link")
                             .font(ShareFont.body(12))
                             .foregroundColor(ShareColor.mutedText)
                         Text("URL: \(content.urlString ?? "")")
@@ -275,7 +282,6 @@ struct ShareView: View {
                         optionRow(icon: "🔤", title: "Extract text (OCR)", sub: "Auto-detects text in image") {
                             snipType = "Extract text (OCR)"
                             self.title = "Extracted Text"
-                            self.descriptionText = "Battlefield 6 Phantom Edition\nElectronic Arts Inc\nUS$64.99"
                             self.imageData = content.sharedImageData
                             startExtraction()
                         }
@@ -507,10 +513,10 @@ struct ShareView: View {
                         Spacer()
 
                         HStack(spacing: 6) {
-                            Circle()
-                                .fill(ShareColor.taupe)
+                            Image("SphirMarkWhite")
+                                .resizable()
+                                .scaledToFit()
                                 .frame(width: 22, height: 22)
-                                .overlay(Text("S").font(.system(size: 11, weight: .bold)).foregroundColor(.white))
                             Text("Sphir snippet")
                                 .font(ShareFont.body(14, weight: .bold))
                                 .foregroundColor(.white)
@@ -636,10 +642,10 @@ struct ShareView: View {
 
                 // Header
                 HStack(spacing: 8) {
-                    Circle()
-                        .fill(ShareColor.taupe)
+                    Image("SphirMark")
+                        .resizable()
+                        .scaledToFit()
                         .frame(width: 24, height: 24)
-                        .overlay(Text("S").font(.system(size: 13, weight: .bold, design: .serif)).foregroundColor(.white))
                     Text("Sphir snippet")
                         .font(ShareFont.heading(15, weight: .bold))
                         .foregroundColor(ShareColor.taupe)
@@ -731,7 +737,7 @@ struct ShareView: View {
                 // Extracted Fields Staggered List
                 ScrollView {
                     VStack(spacing: 6) {
-                        fieldRow(label: "URL", value: content.urlString ?? "", index: 1)
+                        fieldRow(label: "URL", value: content.urlString ?? (isLoadingMetadata ? "" : "None (not a web page)"), index: 1)
                         fieldRow(label: "TITLE", value: title, index: 2)
                         fieldRow(label: "COVER", value: imageData != nil ? "Cover loaded" : "No cover", index: 3)
                         fieldRow(label: "DESCRIPTION", value: descriptionText, index: 4)
@@ -846,7 +852,7 @@ struct ShareView: View {
                         Text(label)
                             .font(ShareFont.body(9, weight: .bold))
                             .foregroundColor(ShareColor.mutedText)
-                        Text(value.isEmpty ? "Scanning..." : value)
+                        Text(value.isEmpty ? (isLoadingMetadata ? "Scanning..." : "None") : value)
                             .font(ShareFont.body(11))
                             .foregroundColor(ShareColor.textPrimary)
                             .lineLimit(1)
@@ -950,7 +956,7 @@ struct ShareView: View {
                 // Done Speed Badge
                 HStack(spacing: 4) {
                     Image(systemName: "bolt.fill").font(.system(size: 10))
-                    Text("Done in 12 seconds")
+                    Text("Done in \(elapsedSeconds) second\(elapsedSeconds == 1 ? "" : "s")")
                         .font(ShareFont.body(11, weight: .bold))
                 }
                 .foregroundColor(ShareColor.taupe)
@@ -980,7 +986,7 @@ struct ShareView: View {
                             .font(ShareFont.body(13, weight: .bold))
                             .foregroundColor(ShareColor.textPrimary)
                             .lineLimit(1)
-                        Text(content.urlString ?? "apple.com")
+                        Text(content.urlString ?? snipType)
                             .font(ShareFont.body(11))
                             .foregroundColor(ShareColor.mutedText)
                             .lineLimit(1)
@@ -1046,6 +1052,18 @@ struct ShareView: View {
         isLoadingMetadata = true
         
         Task {
+            // Shared images (whole, cropped or OCR): read their text on-device
+            // with Vision so the card gets real content, never placeholders.
+            if content.isImage, let data = imageData, let image = UIImage(data: data) {
+                let text = await OCRService.recognizeText(in: image)
+                if descriptionText.isEmpty {
+                    descriptionText = text.isEmpty ? "No text found in this image." : text
+                }
+                if title.isEmpty {
+                    let firstLine = text.split(whereSeparator: \.isNewline).first.map(String.init) ?? ""
+                    title = firstLine.isEmpty ? "Cropped image" : String(firstLine.prefix(80))
+                }
+            }
             // Trigger actual metadata extraction in background if not already pre-fetched
             if title.isEmpty {
                 if content.isLink, let urlString = content.urlString {
@@ -1086,9 +1104,11 @@ struct ShareView: View {
             description: descriptionText,
             urlString: content.urlString,
             bodyText: content.text,
-            imageData: imageData
+            imageData: imageData,
+            tags: tags
         )
         let id = onSave(payload)
+        elapsedSeconds = max(1, Int(Date().timeIntervalSince(startedAt).rounded()))
         
         withAnimation {
             savedCardID = id
@@ -1115,7 +1135,19 @@ struct WebView: UIViewRepresentable {
     @Binding var webViewRef: WKWebView?
 
     func makeUIView(context: Context) -> WKWebView {
-        let webView = WKWebView()
+        // Reuse the web view preloaded when the share sheet opened, so the
+        // crop tool shows the content right away instead of a black screen.
+        let webView = webViewRef ?? Self.makeWebView(content: content)
+        DispatchQueue.main.async {
+            webViewRef = webView
+        }
+        return webView
+    }
+
+    /// Create a web view and start loading the shared content into it.
+    static func makeWebView(content: SharedContent) -> WKWebView {
+        // Screen-sized from the start so the page lays out at its final width.
+        let webView = WKWebView(frame: UIScreen.main.bounds)
         webView.allowsBackForwardNavigationGestures = true
         
         if content.isLink, let urlString = content.urlString, let url = URL(string: urlString) {
@@ -1182,10 +1214,6 @@ struct WebView: UIViewRepresentable {
             </html>
             """
             webView.loadHTMLString(html, baseURL: nil)
-        }
-        
-        DispatchQueue.main.async {
-            webViewRef = webView
         }
         return webView
     }
