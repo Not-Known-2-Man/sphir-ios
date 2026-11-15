@@ -121,14 +121,10 @@ struct AuthView: View {
 
     private var header: some View {
         VStack(spacing: 12) {
-            Circle()
-                .fill(SphirColor.taupe)
-                .frame(width: 72, height: 72)
-                .overlay(
-                    Text("S")
-                        .font(SphirFont.heading(36, weight: .bold))
-                        .foregroundColor(.white)
-                )
+            Image("SphirLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 200)
                 .accessibilityHidden(true)
 
             Text(isSignUp ? "Create your account" : "Welcome back")

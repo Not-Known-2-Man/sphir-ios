@@ -14,14 +14,10 @@ struct OnboardingView: View {
         VStack(spacing: 24) {
             Spacer()
 
-            Circle()
-                .fill(SphirColor.taupe)
+            Image("SphirMark")
+                .resizable()
+                .scaledToFit()
                 .frame(width: 96, height: 96)
-                .overlay(
-                    Text("S")
-                        .font(SphirFont.heading(48, weight: .bold))
-                        .foregroundColor(.white)
-                )
                 .accessibilityHidden(true)
 
             VStack(spacing: 12) {

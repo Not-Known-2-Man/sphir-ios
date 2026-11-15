@@ -12,19 +12,10 @@ struct SplashView: View {
         ZStack {
             SphirColor.background.ignoresSafeArea()
 
-            VStack(spacing: 16) {
-                Circle()
-                    .fill(SphirColor.taupe)
-                    .frame(width: 88, height: 88)
-                    .overlay(
-                        Text("S")
-                            .font(SphirFont.heading(44, weight: .bold))
-                            .foregroundColor(.white)
-                    )
-                Text("SPHIR")
-                    .font(SphirFont.heading(22, weight: .bold))
-                    .foregroundColor(SphirColor.textPrimary)
-            }
+            Image("SphirLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 240)
             .accessibilityHidden(true)
         }
     }
