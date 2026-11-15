@@ -49,7 +49,7 @@ struct DashboardView: View {
                                 collectionsContent
                                     .transition(.move(edge: .leading).combined(with: .opacity))
                             case .groups:
-                                GroupsView(groups: SphirGroup.mockGroups)
+                                groupsContent
                                     .transition(.move(edge: .trailing).combined(with: .opacity))
                             }
                         }
@@ -58,6 +58,7 @@ struct DashboardView: View {
                     .padding(.top, 16)
                     .padding(.bottom, 32)
                 }
+                .scrollDismissesKeyboard(.interactively)
                 .refreshable {
                     await appStore.syncFromAPI()
                 }
@@ -128,13 +129,32 @@ struct DashboardView: View {
         }
     }
 
+    /// Groups have no backend yet: real accounts see an empty state; the
+    /// sample groups exist only for the mock UI-test experience.
+    @ViewBuilder
+    private var groupsContent: some View {
+        if ProcessInfo.processInfo.arguments.contains("UITEST") {
+            GroupsView(groups: SphirGroup.mockGroups)
+        } else {
+            EmptyStateView(
+                icon: "person.3",
+                title: "No groups yet",
+                message: "Groups you create or join will appear here."
+            )
+            .padding(.top, 40)
+        }
+    }
+
     // MARK: - Sticky Header
 
     private var header: some View {
         HStack(spacing: 12) {
-            Text("SPHIR")
-                .font(SphirFont.heading(22, weight: .bold))
-                .foregroundColor(SphirColor.textPrimary)
+            Image("SphirLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(height: 20)
+                .layoutPriority(-1)
+                .accessibilityLabel("Sphir")
                 .accessibilityAddTraits(.isHeader)
 
             Spacer()
@@ -187,6 +207,8 @@ struct DashboardView: View {
         } label: {
             Text("+ Card")
                 .font(SphirFont.body(13, weight: .semibold))
+                .lineLimit(1)
+                .fixedSize()
                 .foregroundColor(.white)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
@@ -202,6 +224,8 @@ struct DashboardView: View {
         } label: {
             Text("+ Collection")
                 .font(SphirFont.body(13, weight: .semibold))
+                .lineLimit(1)
+                .fixedSize()
                 .foregroundColor(SphirColor.taupe)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
@@ -229,10 +253,11 @@ struct DashboardView: View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
                 .foregroundColor(SphirColor.mutedText)
-            TextField("Search collections...", text: $searchText)
+            TextField("Search Sphirs and cards...", text: $searchText)
                 .font(SphirFont.body(15))
                 .foregroundColor(SphirColor.textPrimary)
                 .autocorrectionDisabled()
+                .submitLabel(.search)
                 .accessibilityIdentifier("searchField")
         }
         .padding(.horizontal, 16)
@@ -314,14 +339,10 @@ struct DashboardView: View {
 
     private var collectionsContent: some View {
         VStack(alignment: .leading, spacing: 20) {
-            if !filteredCollections.isEmpty {
+            if isSearching {
+                searchResults
+            } else if !filteredCollections.isEmpty {
                 collectionsGrid
-            } else if isSearching {
-                EmptyStateView(
-                    icon: "magnifyingglass",
-                    title: "No matching collections",
-                    message: "Try a different search, or check the Cards below."
-                )
             } else {
                 EmptyStateView(
                     icon: "square.stack.3d.up",
@@ -333,9 +354,28 @@ struct DashboardView: View {
             if !isSearching && !uncategorizedCards.isEmpty {
                 uncategorizedSection
             }
+        }
+    }
 
-            if isSearching {
+    /// Cards first (what people usually look for), then matching Sphirs.
+    /// The empty state only shows when nothing matches at all.
+    @ViewBuilder
+    private var searchResults: some View {
+        if matchingCards.isEmpty && filteredCollections.isEmpty {
+            EmptyStateView(
+                icon: "magnifyingglass",
+                title: "No results",
+                message: "No Sphirs or cards match \"\(trimmedQuery)\"."
+            )
+        } else {
+            if !matchingCards.isEmpty {
                 matchingCardsSection
+            }
+            if !filteredCollections.isEmpty {
+                Text("Sphirs")
+                    .font(SphirFont.body(14, weight: .semibold))
+                    .foregroundColor(SphirColor.mutedText)
+                collectionsGrid
             }
         }
     }
@@ -372,17 +412,11 @@ struct DashboardView: View {
                 .font(SphirFont.body(14, weight: .semibold))
                 .foregroundColor(SphirColor.mutedText)
 
-            if matchingCards.isEmpty {
-                Text("No matching cards")
-                    .font(SphirFont.body(13))
-                    .foregroundColor(SphirColor.mutedText)
-            } else {
-                ForEach(matchingCards) { card in
-                    NavigationLink(value: card) {
-                        CardRowView(card: card)
-                    }
-                    .buttonStyle(.plain)
+            ForEach(matchingCards) { card in
+                NavigationLink(value: card) {
+                    CardRowView(card: card)
                 }
+                .buttonStyle(.plain)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
