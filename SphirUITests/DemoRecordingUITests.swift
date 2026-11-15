@@ -19,6 +19,11 @@ final class DemoRecordingUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    /// Marks where a demo chapter starts so post-production can caption it.
+    private func section(_ title: String) {
+        print("DEMO_SECTION|\(Date().timeIntervalSince1970)|\(title)")
+    }
+
     private func pause(_ seconds: Double = 1.5) {
         Thread.sleep(forTimeInterval: seconds)
     }
@@ -95,11 +100,170 @@ final class DemoRecordingUITests: XCTestCase {
         tap(app.buttons["navDoneButton"])
         XCTAssertTrue(app.staticTexts["Card Saved!"].waitForExistence(timeout: 20))
         pause(2)
-        let back = app.buttons["backToDashboardButton"]
-        if back.exists { back.tap() }
+        // The success screen returns to the dashboard by itself after 3 s.
         XCTAssertTrue(app.staticTexts["Card Saved!"].waitForNonExistence(timeout: 15))
         pause()
     }
+
+    /// Drag between two points given as fractions of the screen.
+    private func drag(_ target: XCUIApplication, from: CGVector, to: CGVector) {
+        let start = target.coordinate(withNormalizedOffset: from)
+        start.press(forDuration: 0.4, thenDragTo: target.coordinate(withNormalizedOffset: to),
+                    withVelocity: 250, thenHoldForDuration: 0.3)
+    }
+
+    /// Screenshot + crop tool inside the app: pick a screenshot, select only
+    /// the paragraph that matters, and let OCR turn it into a card.
+    private func addCroppedScreenshotCard(title: String) {
+        waitHittable(app.buttons["addCardButton"])
+        tap(app.buttons["addCardButton"])
+        pause(1.5)
+        tap(app.buttons["cardType_text"])
+        pause(1.5)
+        tap(app.buttons["cardSource_screenshots"])
+        pause(4)
+
+        // The photo picker runs out of process: tap the newest photo (the
+        // sample screenshot added with `simctl addmedia`) by position. Retry
+        // in case the picker was still settling.
+        let extract = app.buttons["extractThisButton"]
+        for _ in 0..<4 where !extract.exists {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.163, dy: 0.425)).tap()
+            _ = extract.waitForExistence(timeout: 6)
+        }
+        XCTAssertTrue(extract.waitForExistence(timeout: 10))
+        pause(2)
+
+        // Shrink the selection to the article's first paragraph.
+        drag(app, from: CGVector(dx: 0.233, dy: 0.26), to: CGVector(dx: 0.06, dy: 0.44))
+        pause(1)
+        drag(app, from: CGVector(dx: 0.764, dy: 0.789), to: CGVector(dx: 0.93, dy: 0.67))
+        pause(2)
+        tap(app.buttons["extractThisButton"])
+
+        // OCR fills the title and the extracted text.
+        let titleField = app.textFields["Card title"]
+        expectation(for: NSPredicate(format: "value != %@ AND value.length > 0", "Card title"), evaluatedWith: titleField)
+        waitForExpectations(timeout: 20)
+        pause(3)
+        replaceText(in: titleField, with: title)
+        app.typeText("\n")
+        pause(2)
+
+        tap(app.buttons.matching(NSPredicate(format: "label == %@", "Save")).firstMatch)
+        XCTAssertTrue(app.staticTexts["Card Saved!"].waitForExistence(timeout: 20))
+        pause(2)
+        // The success screen returns to the dashboard by itself after 3 s.
+        XCTAssertTrue(app.staticTexts["Card Saved!"].waitForNonExistence(timeout: 15))
+        pause()
+    }
+
+    /// Share sheet + crop tool from Safari: snip one part of a web page into
+    /// Sphir without opening the app, then come back to find it saved.
+    /// Share a screenshot from Photos, crop a region and let OCR read it.
+    private func snipFromPhotos() {
+        let photos = XCUIApplication(bundleIdentifier: "com.apple.mobileslideshow")
+        photos.terminate()
+        photos.launch()
+        pause(4)
+        // The Wikipedia screenshot is the last item in the library grid.
+        photos.coordinate(withNormalizedOffset: CGVector(dx: 0.165, dy: 0.54)).tap()
+        pause(3)
+        let share = photos.buttons.matching(NSPredicate(format: "label == %@", "Share")).firstMatch
+        // The viewer may open with its toolbar hidden; a tap toggles it.
+        for _ in 0..<3 where !share.waitForExistence(timeout: 3) {
+            photos.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            pause(1)
+        }
+        tap(share)
+        pause(2)
+        let sphir = photos.cells["Sphir"].exists ? photos.cells["Sphir"] : photos.buttons["Sphir"]
+        tap(sphir)
+        pause(3)
+
+        tap(photos.buttons.containing(NSPredicate(format: "label CONTAINS %@", "Select area")).firstMatch)
+        let snip = photos.buttons.matching(NSPredicate(format: "label == %@", "Snip it")).firstMatch
+        XCTAssertTrue(snip.waitForExistence(timeout: 15))
+        pause(3)
+        // Widen the box (x 0.152-0.85, y 0.407-0.636) over the whole paragraph.
+        drag(photos, from: CGVector(dx: 0.152, dy: 0.407), to: CGVector(dx: 0.02, dy: 0.425))
+        pause(1)
+        drag(photos, from: CGVector(dx: 0.85, dy: 0.636), to: CGVector(dx: 0.98, dy: 0.65))
+        pause(2)
+        tap(snip)
+
+        // On-device OCR fills title and description from the cropped region.
+        let save = photos.buttons.matching(NSPredicate(format: "label == %@", "Save and send to Sphir")).firstMatch
+        XCTAssertTrue(save.waitForExistence(timeout: 20))
+        pause(6)
+        save.tap()
+        XCTAssertTrue(photos.staticTexts["Snipped!"].waitForExistence(timeout: 15))
+        pause(4)
+
+        app.activate()
+        XCTAssertTrue(app.buttons["addCardButton"].waitForExistence(timeout: 20))
+        pause(3)
+    }
+
+    private func snipFromSafari(_ url: String) {
+        let safari = XCUIApplication(bundleIdentifier: "com.apple.mobilesafari")
+        safari.open(URL(string: url)!)
+        XCTAssertTrue(safari.wait(for: .runningForeground, timeout: 15))
+        XCTAssertTrue(safari.buttons["MoreMenuButton"].waitForExistence(timeout: 20))
+        pause(4)
+
+        tap(safari.buttons["MoreMenuButton"])
+        pause(1.5)
+        tap(safari.buttons.matching(NSPredicate(format: "label == %@", "Share")).firstMatch)
+        pause(2)
+        tap(safari.cells.matching(NSPredicate(format: "label == %@", "Sphir")).firstMatch)
+        pause(3)
+
+        tap(safari.buttons.containing(NSPredicate(format: "label CONTAINS %@", "Extract specific part")).firstMatch)
+        XCTAssertTrue(safari.buttons.matching(NSPredicate(format: "label == %@", "Snip it")).firstMatch
+            .waitForExistence(timeout: 15))
+        // Let the page render under the crop box before adjusting it.
+        let paragraph = safari.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "concentrated form"))
+            .firstMatch
+        _ = paragraph.waitForExistence(timeout: 15)
+        pause(3)
+
+        // The crop box opens at x 0.152-0.85, y 0.407-0.636. Fit it to a
+        // full-width strip, then move it onto the first paragraph.
+        drag(safari, from: CGVector(dx: 0.85, dy: 0.636), to: CGVector(dx: 0.98, dy: 0.56))
+        pause(1)
+        drag(safari, from: CGVector(dx: 0.152, dy: 0.407), to: CGVector(dx: 0.02, dy: 0.407))
+        pause(1)
+        // The page lays out differently with or without Wikipedia's app
+        // banner, so move the strip to where the paragraph actually is.
+        let matches = safari.staticTexts
+            .containing(NSPredicate(format: "label CONTAINS %@", "concentrated form")).allElementsBoundByIndex
+        // Safari's own page (behind the sheet) also matches; the share
+        // extension's copy comes last in the hierarchy.
+        if let extensionParagraph = matches.last {
+            let screen = safari.frame.size
+            let boxTop = 0.407 * screen.height
+            let targetTop = extensionParagraph.frame.minY - 22
+            let delta = (targetTop - boxTop) / screen.height
+            drag(safari, from: CGVector(dx: 0.5, dy: 0.4835), to: CGVector(dx: 0.5, dy: 0.4835 + delta))
+        }
+        pause(2)
+        tap(safari.buttons.matching(NSPredicate(format: "label == %@", "Snip it")).firstMatch)
+
+        // Metadata extraction, then save.
+        let save = safari.buttons.matching(NSPredicate(format: "label == %@", "Save and send to Sphir")).firstMatch
+        XCTAssertTrue(save.waitForExistence(timeout: 20))
+        pause(5)
+        save.tap()
+        XCTAssertTrue(safari.staticTexts["Snipped!"].waitForExistence(timeout: 15))
+        pause(4)
+
+        // Back to Sphir: the snip is imported and synced on return.
+        app.activate()
+        XCTAssertTrue(app.buttons["addCardButton"].waitForExistence(timeout: 20))
+        pause(3)
+    }
+
 
     @MainActor
     func testRecordFullAppDemo() throws {
@@ -114,6 +278,7 @@ final class DemoRecordingUITests: XCTestCase {
         app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
 
+        section("Sign up")
         // Splash → sign in (or sign up with DEMO_SIGNUP=1).
         if env["DEMO_SIGNUP"] == "1" {
             tap(app.buttons["authToggleButton"], timeout: 20)
@@ -148,21 +313,35 @@ final class DemoRecordingUITests: XCTestCase {
         XCTAssertTrue(app.buttons["addCardButton"].waitForExistence(timeout: 20))
         pause(2.5)
 
+        section("Create Sphirs")
         // Create Sphirs (collections) — the first tap after login must work.
         createCollection("Tech Inspiration")
         createCollection("Weekend Plans")
 
+        section("Card from a link")
         // Save cards straight from links; the preview fills in title and image.
         addURLCard("https://www.apple.com", expectedTitle: "Apple")
         addURLCard("https://github.com", expectedTitle: "GitHub")
 
+        section("Crop tool: screenshot")
+        // Crop tool 1: inside the app, from a screenshot (with OCR).
+        addCroppedScreenshotCard(title: "Espresso notes")
+
+        section("Snippet: Safari")
+        // Crop tool 2: from any app through the iOS share sheet.
+        snipFromSafari("https://en.m.wikipedia.org/wiki/Espresso")
+        section("Snippet: Photos")
+        snipFromPhotos()
+
+        section("Browse and read")
         // Open the Sphir and a card.
         let sphir = app.staticTexts["Tech Inspiration"].firstMatch
         waitHittable(sphir)
         sphir.tap()
         pause(2.5)
 
-        tap(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Apple")).firstMatch)
+        // GitHub reads cleanly; apple.com adds a location-based region banner.
+        tap(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "GitHub")).firstMatch)
         pause(3)
 
         // Read the page inside the app.
@@ -173,6 +352,7 @@ final class DemoRecordingUITests: XCTestCase {
         tap(app.buttons["cardDetailBackButton"])
         pause(1.5)
 
+        section("Edit a card")
         // Rename a card from its context menu.
         let githubRow = app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "GitHub")).firstMatch
         XCTAssertTrue(githubRow.waitForExistence(timeout: 15))
@@ -189,13 +369,19 @@ final class DemoRecordingUITests: XCTestCase {
         tap(app.buttons["collectionDetailBackButton"])
         pause(2)
 
+        section("Search")
         // Search across Sphirs and cards.
         type("Apple", into: app.textFields["searchField"])
-        pause(3)
+        pause(1.5)
+        // Tap the keyboard's Search key so the results are fully visible.
+        app.typeText("\n")
+        XCTAssertTrue(app.staticTexts["Apple"].firstMatch.waitForExistence(timeout: 5))
+        pause(4)
         replaceText(in: app.textFields["searchField"], with: "")
         app.typeText("\n")
         pause(1.5)
 
+        section("Notifications and settings")
         // Notifications and settings.
         tap(app.buttons["notificationsButton"])
         pause(2.5)

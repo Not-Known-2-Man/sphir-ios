@@ -18,7 +18,12 @@ struct SphirTests {
     /// the shared App Group CoreData store.
     @MainActor
     private func makeStore() -> AppStore {
-        AppStore(context: PersistenceController(inMemory: true).container.viewContext)
+        // Real mode never seeds sample data, so each test creates its own.
+        let store = AppStore(context: PersistenceController(inMemory: true).container.viewContext)
+        let collection = store.addCollection(name: "Test Collection", privacy: .private)
+        store.addCard(title: "Test Card", description: "Seed card", urlText: "",
+                      tagsText: "", type: .text, source: .url, collectionID: collection.id)
+        return store
     }
 
     @Test func example() async throws {
@@ -32,6 +37,7 @@ struct SphirTests {
     @MainActor
     @Test func importsPendingSharedCard() async throws {
         SharedInbox.clearPendingCards()
+        let store = makeStore()
         SharedInbox.enqueueCard(
             SharedCardDTO(
                 id: UUID(),
@@ -41,8 +47,7 @@ struct SphirTests {
                 createdAt: Date()
             )
         )
-
-        let store = makeStore()
+        store.importPendingSharedCards()
         let first = try #require(store.collections.first)
 
         #expect(store.cards(in: first.id).contains { $0.content == "https://example.com/article" })
