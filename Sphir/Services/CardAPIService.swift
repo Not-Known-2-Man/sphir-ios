@@ -47,10 +47,12 @@ struct BusinessDTO: Decodable {
     let email: String
     let tags: [String]
     let folderServerID: String?
+    let imageURL: String?
 
     private enum CodingKeys: String, CodingKey {
         case id, title, description, website, email, tags
         case folderID = "folder_id"
+        case ogImage = "og_image"
     }
 
     init(from decoder: Decoder) throws {
@@ -61,6 +63,8 @@ struct BusinessDTO: Decodable {
         website = (try? c.decode(String.self, forKey: .website)) ?? ""
         email = (try? c.decode(String.self, forKey: .email)) ?? ""
         folderServerID = (try? c.decode(FlexibleID.self, forKey: .folderID))?.value
+        let og = (try? c.decode(String.self, forKey: .ogImage)) ?? ""
+        imageURL = og.isEmpty ? nil : og
 
         // Tags may be an array of strings or a comma-separated string.
         if let array = try? c.decode([String].self, forKey: .tags) {
@@ -73,30 +77,37 @@ struct BusinessDTO: Decodable {
     }
 
     func toCard() -> Card {
-        Card(
+        // The card type round-trips through a hidden "_<type>" tag (S8).
+        let typeTagged = tags.first { $0.hasPrefix("_") && CardType(rawValue: String($0.dropFirst())) != nil }
+        let type = typeTagged.flatMap { CardType(rawValue: String($0.dropFirst())) } ?? .business
+        let visibleTags = tags.filter { !$0.hasPrefix("_") }
+        return Card(
             title: title.isEmpty ? "Untitled" : title,
             description: description,
             content: website,
-            cardType: .business,
+            cardType: type,
             sourceApp: .safari,
-            tags: tags,
+            imageURL: imageURL,
+            tags: visibleTags,
             syncStatus: .synced,
             serverID: serverID
         )
     }
 }
 
-private struct BusinessRequest: Encodable {
+struct BusinessRequest: Encodable {
     let title: String
     let description: String
     let website: String
     let email: String
     let tags: [String]
     let folderID: String?
+    let ogImage: String?
 
     enum CodingKeys: String, CodingKey {
         case title, description, website, email, tags
         case folderID = "folder_id"
+        case ogImage = "og_image"
     }
 
     init(card: Card, folderServerID: String? = nil) {
@@ -104,8 +115,14 @@ private struct BusinessRequest: Encodable {
         description = card.description
         website = card.content
         email = ""
-        tags = card.tags
+        // Store the card type as a hidden "_<type>" tag; own cards (.originalScribe) too.
+        tags = card.tags.filter { !$0.hasPrefix("_") } + [card.cardType.typeTag]
         folderID = folderServerID
+        if let img = card.imageURL, img.hasPrefix("http://") || img.hasPrefix("https://") {
+            ogImage = img
+        } else {
+            ogImage = nil
+        }
     }
 }
 

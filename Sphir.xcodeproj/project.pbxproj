@@ -59,6 +59,10 @@
 		5DE4D7A1300B000100E0A065 /* Exceptions for "Sphir" folder in "SphirShare" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Models/CardType.swift,
+				Services/KeychainService.swift,
+				Services/LinkPreview.swift,
+				Services/NetworkService.swift,
 				Services/OCRService.swift,
 			);
 			target = 5DE4D5483000879700E0A065 /* SphirShare */;
