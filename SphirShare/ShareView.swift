@@ -23,6 +23,8 @@ struct SharedContent {
     var urlString: String?
     var text: String?
     var sharedImageData: Data?
+    /// Cleaned <head> + JSON-LD of the page Safari already loaded (ClipPreprocess.js).
+    var pageHTML: String?
 
     var isLink: Bool { !(urlString ?? "").isEmpty }
     var isImage: Bool { sharedImageData != nil }
