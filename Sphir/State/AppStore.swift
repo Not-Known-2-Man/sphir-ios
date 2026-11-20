@@ -35,10 +35,12 @@ final class AppStore: ObservableObject {
 
     // MARK: - Queries
 
-    /// Cards belonging to a given collection, newest first.
+    /// Cards belonging to a given collection (as primary or as an extra
+    /// collection), newest first.
     func cards(in collectionID: UUID) -> [Card] {
-        cards
-            .filter { $0.collectionID == collectionID }
+        let serverID = collections.first { $0.id == collectionID }?.serverID
+        return cards
+            .filter { $0.isIn(collectionID: collectionID, serverID: serverID) }
             .sorted { $0.createdAt > $1.createdAt }
     }
 
@@ -75,6 +77,48 @@ final class AppStore: ObservableObject {
         reload()
         pushNewCard(card)
         return card
+    }
+
+    /// A card the user wrote themselves ("Write your own").
+    @discardableResult
+    func addOwnCard(title: String, description: String, content: String, tagsText: String,
+                    collectionID: UUID? = nil) -> Card {
+        let tags = tagsText
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        let card = Card(
+            title: title,
+            description: description,
+            content: content,
+            cardType: .originalScribe,
+            sourceApp: .own,
+            tags: tags,
+            collectionID: resolveCollectionID(collectionID)
+        )
+        insert(card)
+        save()
+        reload()
+        pushNewCard(card)
+        return card
+    }
+
+    /// A pasted-link clip that could not be created online (offline, signed
+    /// out, API error): kept locally with its type, price and cover, and
+    /// pushed by the normal sync. Returns the new card's local id.
+    func addClipCard(_ payload: SharePayload) -> UUID {
+        let dto = SharedCardDTO(
+            id: UUID(), title: payload.title, description: payload.description,
+            urlString: payload.urlString ?? "", bodyText: payload.bodyText ?? "",
+            imageData: payload.imageData, collectionID: payload.collectionID, createdAt: Date(),
+            tags: payload.tags, cardTypeRaw: payload.cardTypeRaw, price: payload.price,
+            imageURL: payload.imageURL)
+        let card = Self.card(fromShared: dto, collectionID: resolveCollectionID(payload.collectionID))
+        insert(card)
+        save()
+        reload()
+        pushNewCard(card)
+        return card.id
     }
 
     @discardableResult
@@ -308,6 +352,8 @@ final class AppStore: ObservableObject {
                     existingObject.setValue(dto.description, forKey: "cardDescription")
                     existingObject.setValue(dto.website, forKey: "content")
                     existingObject.setValue(encodeTags(dto.tags), forKey: "tagsJSON")
+                    existingObject.setValue(dto.price, forKey: "price")
+                    existingObject.setValue(encodeTags(dto.folderServerIDs), forKey: "folderIDsJSON")
                     
                     if let folderServerID = dto.folderServerID,
                        let folder = cdCollection(serverID: folderServerID) {
@@ -374,6 +420,24 @@ final class AppStore: ObservableObject {
         reload()
     }
 
+    /// Replace the card's collections on the API (primary first) and keep the
+    /// confirmed list locally. Returns false (state unchanged) when it fails.
+    func setCardCollections(cardID: UUID, folderServerIDs: [String]) async -> Bool {
+        guard KeychainService.hasCredentials,
+              let serverID = cards.first(where: { $0.id == cardID })?.serverID,
+              !folderServerIDs.isEmpty else { return false }
+        do {
+            let dto = try await CardAPIService.setFolders(serverID: serverID, folderIDs: folderServerIDs)
+            let confirmed = dto.folderServerIDs.isEmpty ? folderServerIDs : dto.folderServerIDs
+            cdCard(id: cardID)?.setValue(encodeTags(confirmed), forKey: "folderIDsJSON")
+            save()
+            reload()
+            return true
+        } catch {
+            return false
+        }
+    }
+
     // MARK: - Combined sync
 
     /// Pull collections then cards from the API (order matters so cards can be
@@ -395,8 +459,30 @@ final class AppStore: ObservableObject {
     // MARK: - Share Extension Bridge
 
     func publishCollectionsToSharedInbox() {
-        SharedInbox.saveCollections(
-            collections.map { SharedCollectionDTO(id: $0.id, name: $0.name) }
+        SharedInbox.saveCollections(Self.sharedCollections(from: collections))
+    }
+
+    /// What the extension sees: each collection with its API folder id, so it
+    /// no longer has to match folders by name.
+    nonisolated static func sharedCollections(from collections: [Collection]) -> [SharedCollectionDTO] {
+        collections.map { SharedCollectionDTO(id: $0.id, name: $0.name, serverID: $0.serverID) }
+    }
+
+    /// A queued clip as a card: keeps the type, price and cover URL the clip
+    /// flow queued; older queued cards (no type) stay plain text.
+    nonisolated static func card(fromShared dto: SharedCardDTO, collectionID: UUID?) -> Card {
+        let isLink = !dto.urlString.isEmpty
+        return Card(
+            title: dto.title.isEmpty ? (isLink ? "Shared Link" : "Shared Text") : dto.title,
+            description: dto.description,
+            content: isLink ? dto.urlString : dto.bodyText,
+            cardType: dto.cardTypeRaw.flatMap(CardType.init(rawValue:)) ?? .text,
+            sourceApp: SourceApp(rawValue: dto.sourceAppRaw) ?? .safari,
+            imageURL: dto.imageURL,
+            imageData: dto.imageData,
+            price: dto.price ?? "",
+            tags: dto.tags ?? [],
+            collectionID: collectionID
         )
     }
 
@@ -405,20 +491,7 @@ final class AppStore: ObservableObject {
         guard !pending.isEmpty else { return }
 
         for dto in pending {
-            let isLink = !dto.urlString.isEmpty
-            let title = dto.title.isEmpty ? (isLink ? "Shared Link" : "Shared Text") : dto.title
-            
-            let card = Card(
-                title: title,
-                description: dto.description,
-                content: isLink ? dto.urlString : dto.bodyText,
-                cardType: .text,
-                sourceApp: SourceApp(rawValue: dto.sourceAppRaw) ?? .safari,
-                imageData: dto.imageData,
-                tags: dto.tags ?? [],
-                collectionID: resolveCollectionID(dto.collectionID)
-            )
-            insert(card)
+            insert(Self.card(fromShared: dto, collectionID: resolveCollectionID(dto.collectionID)))
         }
         SharedInbox.clearPendingCards()
         save()
@@ -530,6 +603,8 @@ final class AppStore: ObservableObject {
         object.setValue(card.createdAt, forKey: "createdAt")
         object.setValue(card.collectionID, forKey: "collectionID")
         object.setValue(card.serverID, forKey: "serverID")
+        object.setValue(card.price, forKey: "price")
+        object.setValue(encodeTags(card.folderServerIDs), forKey: "folderIDsJSON")
     }
 
     private func save() {
@@ -548,14 +623,15 @@ final class AppStore: ObservableObject {
         let mappedCards = cardObjects.map(card(from:))
         self.cards = mappedCards
 
+        let collectionObjects = fetchCollections()
         var countByCollection: [UUID: Int] = [:]
-        for card in mappedCards {
-            if let cid = card.collectionID {
-                countByCollection[cid, default: 0] += 1
-            }
+        for object in collectionObjects {
+            guard let id = object.value(forKey: "id") as? UUID else { continue }
+            let serverID = object.value(forKey: "serverID") as? String
+            countByCollection[id] = mappedCards.filter { $0.isIn(collectionID: id, serverID: serverID) }.count
         }
 
-        self.collections = fetchCollections().map { object in
+        self.collections = collectionObjects.map { object in
             let id = object.value(forKey: "id") as? UUID ?? UUID()
             return Collection(
                 id: id,
@@ -579,11 +655,13 @@ final class AppStore: ObservableObject {
             sourceApp: SourceApp(rawValue: object.value(forKey: "sourceApp") as? String ?? "") ?? .safari,
             imageURL: object.value(forKey: "imageURL") as? String,
             imageData: object.value(forKey: "imageData") as? Data,
+            price: object.value(forKey: "price") as? String ?? "",
             tags: decodeTags(object.value(forKey: "tagsJSON") as? String),
             syncStatus: SyncStatus(rawValue: object.value(forKey: "syncStatus") as? String ?? "") ?? .synced,
             createdAt: object.value(forKey: "createdAt") as? Date ?? Date(),
             collectionID: object.value(forKey: "collectionID") as? UUID,
-            serverID: object.value(forKey: "serverID") as? String
+            serverID: object.value(forKey: "serverID") as? String,
+            folderServerIDs: decodeTags(object.value(forKey: "folderIDsJSON") as? String)
         )
     }
 

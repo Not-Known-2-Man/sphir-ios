@@ -79,6 +79,14 @@
 			);
 			target = 5DE4D5483000879700E0A065 /* SphirShare */;
 		};
+		5DE4D7B1300C000100E0A065 /* Exceptions for "SphirShare" folder in "Sphir" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ClipFlowView.swift,
+				ShareTheme.swift,
+			);
+			target = 5DE4D4E13000720300E0A065 /* Sphir */;
+		};
 		5DE4D61E300AFCCB00E0A065 /* Exceptions for "Sphir" folder in "Sphir" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -112,6 +120,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				5DE4D5543000879700E0A065 /* Exceptions for "SphirShare" folder in "SphirShare" target */,
+				5DE4D7B1300C000100E0A065 /* Exceptions for "SphirShare" folder in "Sphir" target */,
 			);
 			path = SphirShare;
 			sourceTree = "<group>";

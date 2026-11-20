@@ -85,22 +85,18 @@ final class DemoRecordingUITests: XCTestCase {
         waitHittable(app.buttons["addCardButton"])
         tap(app.buttons["addCardButton"])
         pause(1.5)
-        tap(app.buttons["cardType_text"])
-        pause(1.5)
-        tap(app.buttons["cardSource_url"])
-        pause(1)
         type(url + "\n", into: app.textFields["cardURLField"])
 
-        // Wait for the link preview to fill in the title.
-        let title = app.textFields["cardTitleField"]
+        // Wait for the preview card to fill in the title.
+        let title = app.descendants(matching: .any)["clipTitleField"]
         expectation(for: NSPredicate(format: "value CONTAINS %@", expectedTitle), evaluatedWith: title)
         waitForExpectations(timeout: 30)
         pause(2.5)
 
-        tap(app.buttons["navDoneButton"])
+        tap(app.buttons["saveCardButton"])
         XCTAssertTrue(app.staticTexts["Card Saved!"].waitForExistence(timeout: 20))
         pause(2)
-        // The success screen returns to the dashboard by itself after 3 s.
+        tap(app.buttons["Done"])
         XCTAssertTrue(app.staticTexts["Card Saved!"].waitForNonExistence(timeout: 15))
         pause()
     }
@@ -118,9 +114,7 @@ final class DemoRecordingUITests: XCTestCase {
         waitHittable(app.buttons["addCardButton"])
         tap(app.buttons["addCardButton"])
         pause(1.5)
-        tap(app.buttons["cardType_text"])
-        pause(1.5)
-        tap(app.buttons["cardSource_screenshots"])
+        tap(app.buttons["addCardPhotoButton"])
         pause(4)
 
         // The photo picker runs out of process: tap the newest photo (the
