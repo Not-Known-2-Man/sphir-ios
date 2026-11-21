@@ -93,6 +93,28 @@ extension CardType {
         }
     }
 
+    /// Uppercase label for the preview / saved cards. One rule for every screen:
+    /// a social card whose URL is an instagram.com /reel/ or /reels/ link reads
+    /// "INSTAGRAM REEL" (S9).
+    static func label(for type: CardType, url: String?) -> String {
+        switch type {
+        case .article: return "ARTICLE"
+        case .product: return "PRODUCT"
+        case .video:   return "VIDEO"
+        case .recipe:  return "RECIPE"
+        case .social:  return isInstagramReel(url) ? "INSTAGRAM REEL" : "SOCIAL"
+        default:       return "LINK"
+        }
+    }
+
+    static func isInstagramReel(_ url: String?) -> Bool {
+        guard let url, let u = URL(string: url), var host = u.host?.lowercased() else { return false }
+        if host.hasPrefix("www.") { host.removeFirst(4) } else if host.hasPrefix("m.") { host.removeFirst(2) }
+        guard host == "instagram.com" else { return false }
+        let path = u.path.lowercased()
+        return path.hasPrefix("/reel/") || path.hasPrefix("/reels/")
+    }
+
     /// Hidden tag used to persist the card type on the API (web convention).
     var typeTag: String { "_\(rawValue)" }
 }

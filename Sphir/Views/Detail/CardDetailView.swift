@@ -36,7 +36,7 @@ struct CardDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            DetailTopBar(title: card.cardType.title, backIdentifier: "cardDetailBackButton") { dismiss() }
+            DetailTopBar(title: CardType.isInstagramReel(card.content) && card.cardType == .social ? CardType.label(for: card.cardType, url: card.content) : card.cardType.title, backIdentifier: "cardDetailBackButton") { dismiss() }
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {

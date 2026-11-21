@@ -84,7 +84,8 @@ final class ClipFlowModel: ObservableObject {
             draft = ClipDraft(preview: preview, fallbackURL: url)
         } else {
             let meta = await MetadataService.fetch(urlString: url)
-            draft = ClipDraft(fallbackURL: url, title: meta?.title ?? "", description: meta?.description ?? "")
+            draft = ClipDraft(fallbackURL: url, title: meta?.title ?? "", description: meta?.description ?? "",
+                              imageURL: meta?.imageURL)
             coverData = meta?.imageData
         }
         phase = .preview
