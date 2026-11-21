@@ -202,33 +202,53 @@ struct CardDetailView: View {
         .accessibilityLabel("Sync status: \(card.syncStatus.label)")
     }
 
+    /// Remote cover (the card's og_image) for cards synced from the API, which have no
+    /// local image data. Forced to https because App Transport Security blocks http.
+    static func remoteCoverURL(for card: Card) -> URL? {
+        ClipDraft.httpsURL(card.imageURL).flatMap(URL.init(string:))
+    }
+
     @ViewBuilder
     private var coverImage: some View {
         if let data = card.imageData, let uiImage = UIImage(data: data) {
-            Image(uiImage: uiImage)
-                .resizable()
-                .scaledToFit()
-                .frame(maxWidth: .infinity)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12).stroke(SphirColor.border, lineWidth: 1)
-                )
-                .accessibilityLabel("Card image")
+            coverFrame(Image(uiImage: uiImage).resizable().scaledToFit())
+        } else if let url = Self.remoteCoverURL(for: card) {
+            AsyncImage(url: url) { phase in
+                if let image = phase.image {
+                    coverFrame(image.resizable().scaledToFit())
+                } else {
+                    coverPlaceholder
+                }
+            }
         } else {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(SphirColor.cardBackgroundAlt)
-                .frame(height: 180)
-                .overlay(
-                    Image(systemName: "photo")
-                        .font(.system(size: 32))
-                        .foregroundColor(SphirColor.lightTaupe)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(SphirColor.border, lineWidth: 1)
-                )
-                .accessibilityHidden(true)
+            coverPlaceholder
         }
+    }
+
+    private func coverFrame(_ image: some View) -> some View {
+        image
+            .frame(maxWidth: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12).stroke(SphirColor.border, lineWidth: 1)
+            )
+            .accessibilityLabel("Card image")
+    }
+
+    private var coverPlaceholder: some View {
+        RoundedRectangle(cornerRadius: 12)
+            .fill(SphirColor.cardBackgroundAlt)
+            .frame(height: 180)
+            .overlay(
+                Image(systemName: "photo")
+                    .font(.system(size: 32))
+                    .foregroundColor(SphirColor.lightTaupe)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(SphirColor.border, lineWidth: 1)
+            )
+            .accessibilityHidden(true)
     }
 
     private var tagCloud: some View {
