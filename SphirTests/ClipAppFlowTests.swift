@@ -257,6 +257,24 @@ struct ClipAppFlowTests {
     }
 
     @MainActor
+    @Test func photoRowRoutesCameraAndLibrary() {
+        let flow = CardFlowCoordinator()
+        flow.start()
+
+        flow.openCamera()
+        #expect(flow.showPhotoForm && flow.selectedSource == .camera)
+        #expect(flow.clipLink == nil && !flow.showForm && !flow.showScreenshotForm)
+
+        flow.showPhotoForm = false
+        flow.openPhoto()
+        #expect(flow.showScreenshotForm && flow.selectedSource == .screenshots)
+        #expect(!flow.showPhotoForm)
+
+        #expect(CardFlowCoordinator.photoChoices(cameraAvailable: true) == [.library, .camera])
+        #expect(CardFlowCoordinator.photoChoices(cameraAvailable: false) == [.library])
+    }
+
+    @MainActor
     @Test func viewCardFromTheClipClosesTheFlowAndRoutes() {
         let flow = CardFlowCoordinator()
         flow.start()

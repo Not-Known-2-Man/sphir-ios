@@ -16,6 +16,7 @@ struct AddCardView: View {
     @EnvironmentObject private var appStore: AppStore
 
     @State private var linkText = ""
+    @State private var showPhotoChoices = false
     @FocusState private var linkFocused: Bool
 
     private var link: String? { AddCardInput.link(from: linkText) }
@@ -54,7 +55,7 @@ struct AddCardView: View {
                         title: "Photo or screenshot",
                         subtitle: "Pick one and extract its text",
                         identifier: "addCardPhotoButton"
-                    ) { flow.openPhoto() }
+                    ) { choosePhotoSource() }
 
                     CardOptionRow(
                         emoji: "✍️",
@@ -71,6 +72,11 @@ struct AddCardView: View {
         }
         .background(SphirColor.background.ignoresSafeArea())
         .onAppear(perform: prefillFromClipboard)
+        .confirmationDialog("Photo or screenshot", isPresented: $showPhotoChoices, titleVisibility: .visible) {
+            Button("Choose from library") { flow.openPhoto() }
+            Button("Take a photo") { flow.openCamera() }
+            Button("Cancel", role: .cancel) {}
+        }
         // Preview card -> saved card (shared with the extension).
         .fullScreenCover(item: $flow.clipLink) { clip in
             ClipScreen(url: clip.url, store: appStore, flow: flow)
@@ -78,6 +84,12 @@ struct AddCardView: View {
         // "Write your own".
         .fullScreenCover(isPresented: $flow.showForm) {
             CardFormView()
+                .environmentObject(flow)
+                .environmentObject(appStore)
+        }
+        // Take a photo (camera) -> photo card form.
+        .fullScreenCover(isPresented: $flow.showPhotoForm) {
+            PhotoCardView()
                 .environmentObject(flow)
                 .environmentObject(appStore)
         }
@@ -116,6 +128,15 @@ struct AddCardView: View {
         .padding(.vertical, 14)
         .background(RoundedRectangle(cornerRadius: 12).fill(SphirColor.cardBackground))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(SphirColor.border, lineWidth: 1))
+    }
+
+    /// With a camera, ask library vs camera; without one, go straight to the library.
+    private func choosePhotoSource() {
+        if CardFlowCoordinator.photoChoices(cameraAvailable: CameraPicker.isAvailable).contains(.camera) {
+            showPhotoChoices = true
+        } else {
+            flow.openPhoto()
+        }
     }
 
     private func submit() {

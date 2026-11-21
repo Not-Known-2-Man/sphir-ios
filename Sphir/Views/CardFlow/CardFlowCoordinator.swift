@@ -17,6 +17,12 @@ struct ClipLink: Identifiable, Equatable {
     let url: String
 }
 
+/// What the "Photo or screenshot" row offers.
+enum PhotoChoice: Equatable {
+    case library
+    case camera
+}
+
 @MainActor
 final class CardFlowCoordinator: ObservableObject {
     // Presentation flags — each bound to a sheet/cover in the flow.
@@ -57,6 +63,17 @@ final class CardFlowCoordinator: ObservableObject {
     func openPhoto() {
         selectedSource = .screenshots
         showScreenshotForm = true
+    }
+
+    /// "Take a photo": the existing camera path (CameraPicker -> PhotoCardView).
+    func openCamera() {
+        selectedSource = .camera
+        showPhotoForm = true
+    }
+
+    /// Camera is only offered when the device has one (not on the Simulator).
+    nonisolated static func photoChoices(cameraAvailable: Bool) -> [PhotoChoice] {
+        cameraAvailable ? [.library, .camera] : [.library]
     }
 
     /// "Write your own": the Original Scribe form.
