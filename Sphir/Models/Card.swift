@@ -177,13 +177,16 @@ extension Card {
                 collectionID: id
             ),
             Card(
-                title: "Wishlist Item",
-                description: "Something to circle back to later.",
-                content: "Product details and price notes.",
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000099")!,
+                title: "The Sprouter",
+                description: "Automatic indoor garden for growing fresh microgreens and sprouts at home.",
+                content: "https://thesproutingcompany.com",
                 cardType: .product,
-                sourceApp: .mail,
-                tags: ["shopping", "later"],
-                syncStatus: .offline,
+                sourceApp: .safari,
+                imageURL: "https://thesproutingcompany.com/sprouter.jpg",
+                price: "$99.99",
+                tags: ["shopping", "home"],
+                syncStatus: .synced,
                 createdAt: Date(timeIntervalSince1970: 1_715_200_000),
                 collectionID: id
             )
@@ -205,6 +208,9 @@ extension Card {
                     content: card.content,
                     cardType: card.cardType,
                     sourceApp: card.sourceApp,
+                    imageURL: card.imageURL,
+                    imageData: card.imageData,
+                    price: card.price,
                     tags: card.tags,
                     syncStatus: card.syncStatus,
                     createdAt: card.createdAt,
