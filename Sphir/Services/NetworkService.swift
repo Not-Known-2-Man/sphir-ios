@@ -49,7 +49,8 @@ struct AnyEncodable: Encodable {
 struct EmptyResponse: Decodable {}
 
 final class NetworkService {
-    static let shared = NetworkService()
+    static let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    static let shared = NetworkService(allowsNetwork: !NetworkService.isRunningTests)
 
     let baseURL: URL = {
         #if DEBUG
@@ -66,11 +67,13 @@ final class NetworkService {
         return URL(string: "https://sphir-api.onrender.com")!
     }()
     private let session: URLSession
+    private let allowsNetwork: Bool
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
 
-    init(session: URLSession = .shared) {
+    init(session: URLSession = .shared, allowsNetwork: Bool = true) {
         self.session = session
+        self.allowsNetwork = allowsNetwork
         decoder = JSONDecoder()
         encoder = JSONEncoder()
     }
@@ -84,6 +87,10 @@ final class NetworkService {
         body: Encodable? = nil,
         authorized: Bool = true
     ) async throws -> T {
+        guard allowsNetwork else {
+            throw NetworkError.transport(URLError(.notConnectedToInternet))
+        }
+
         var components = URLComponents(
             url: baseURL.appendingPathComponent(path),
             resolvingAgainstBaseURL: false
