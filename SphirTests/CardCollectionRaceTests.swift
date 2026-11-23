@@ -133,6 +133,38 @@ struct CardCollectionRaceTests {
         #expect(api.cardCalls.isEmpty)
     }
 
+    @Test func cardDeletedWhileWaitingIsNeverPosted() async {
+        api.holdFolder = true
+        let collection = store.addCollection(name: "Trip", privacy: .private)
+        #expect(await waitUntil { api.folderIsHeld })
+
+        let card = addCard("one", to: collection.id)
+        await settle()
+        store.deleteCard(id: card.id)
+
+        api.releaseFolder()
+        #expect(await waitUntil { store.collections.first { $0.id == collection.id }?.serverID == "F1" })
+        await settle()
+        #expect(api.cardCalls.isEmpty)
+        #expect(store.cards.isEmpty)
+    }
+
+    @Test func cardEditedWhileWaitingIsPostedWithTheNewTitle() async {
+        api.holdFolder = true
+        let collection = store.addCollection(name: "Trip", privacy: .private)
+        #expect(await waitUntil { api.folderIsHeld })
+
+        var card = addCard("one", to: collection.id)
+        await settle()
+        card.title = "edited"
+        store.updateCard(card)
+
+        api.releaseFolder()
+        #expect(await waitUntil { api.cardCalls.count == 1 })
+        #expect(api.cardCalls.first?.title == "edited")
+        #expect(api.cardCalls.first?.folder == "F1")
+    }
+
     // MARK: - Preserved behavior
 
     @Test func cardIntoSyncedCollectionIsPostedImmediatelyWithItsFolder() async {

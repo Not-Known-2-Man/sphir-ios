@@ -29,6 +29,10 @@ final class AppStore: ObservableObject {
     private let createFolder: FolderCreator
     private let createCard: CardCreator
     private let hasCredentials: () -> Bool
+    typealias FolderFetcher = () async throws -> [Collection]
+    typealias CardFetcher = () async throws -> [BusinessDTO]
+    private let fetchFolders: FolderFetcher
+    private let fetchRemoteCards: CardFetcher
     /// Collection creates still in flight (local id -> resulting folder id), so a
     /// card added meanwhile can wait for its folder. Entries are removed when done.
     private var pendingFolderCreates: [UUID: Task<String?, Never>] = [:]
@@ -42,12 +46,16 @@ final class AppStore: ObservableObject {
         createCard: @escaping CardCreator = { card, folderServerID in
             try await CardAPIService.createCard(card, folderServerID: folderServerID)
         },
-        hasCredentials: @escaping () -> Bool = { KeychainService.hasCredentials }
+        hasCredentials: @escaping () -> Bool = { KeychainService.hasCredentials },
+        fetchFolders: @escaping FolderFetcher = { try await CollectionAPIService.fetchCollections() },
+        fetchCards: @escaping CardFetcher = { try await CardAPIService.fetchAllCards() }
     ) {
         self.context = context
         self.createFolder = createFolder
         self.createCard = createCard
         self.hasCredentials = hasCredentials
+        self.fetchFolders = fetchFolders
+        self.fetchRemoteCards = fetchCards
         if seedIfEmpty { seedIfNeeded() }
         importPendingSharedCards()
         reload()
@@ -197,7 +205,7 @@ final class AppStore: ObservableObject {
         save()
         reload()
 
-        guard KeychainService.hasCredentials, let serverID = card.serverID else { return }
+        guard hasCredentials(), let serverID = card.serverID else { return }
         Task { try? await CardAPIService.updateCard(serverID: serverID, card: card) }
     }
 
@@ -208,7 +216,7 @@ final class AppStore: ObservableObject {
         save()
         reload()
 
-        guard KeychainService.hasCredentials, let serverID else { return }
+        guard hasCredentials(), let serverID else { return }
         Task { try? await CardAPIService.deleteCard(serverID: serverID) }
     }
 
@@ -259,7 +267,7 @@ final class AppStore: ObservableObject {
     /// insert the fresh API response. This prevents duplicates from stale cache
     /// or seed data — MySQL is the single source of truth.
     func syncCollections() async {
-        guard KeychainService.hasCredentials else { return }
+        guard hasCredentials() else { return }
         
         // 1. Upload local collections that haven't been synced yet
         let localCollections = fetchCollections()
@@ -269,11 +277,7 @@ final class AppStore: ObservableObject {
                 let desc = object.value(forKey: "collectionDescription") as? String ?? ""
                 let privacy = object.value(forKey: "privacy") as? String ?? "private"
                 do {
-                    let remote = try await CollectionAPIService.createCollection(
-                        name: name,
-                        description: desc,
-                        privacy: privacy
-                    )
+                    let remote = try await createFolder(name, desc, privacy)
                     if let serverID = remote.serverID {
                         object.setValue(serverID, forKey: "serverID")
                     }
@@ -286,7 +290,7 @@ final class AppStore: ObservableObject {
         
         // 2. Fetch and reconcile
         do {
-            let remote = try await CollectionAPIService.fetchCollections()
+            let remote = try await fetchFolders()
             
             let existingCollections = fetchCollections()
             var existingByServerID: [String: NSManagedObject] = [:]
@@ -352,7 +356,7 @@ final class AppStore: ObservableObject {
     /// fresh API response. Must run after syncCollections() so folder lookups
     /// by serverID resolve against the freshly inserted collections.
     func syncCards() async {
-        guard KeychainService.hasCredentials else { return }
+        guard hasCredentials() else { return }
         
         // 1. Upload local cards that are offline or haven't been synced yet
         let localCards = fetchCards()
@@ -365,7 +369,7 @@ final class AppStore: ObservableObject {
                 let folderServerID = card.collectionID
                     .flatMap { cdCollection(id: $0)?.value(forKey: "serverID") as? String }
                 do {
-                    let remote = try await CardAPIService.createCard(card, folderServerID: folderServerID)
+                    let remote = try await createCard(card, folderServerID)
                     if let remoteServerID = remote.serverID {
                         object.setValue(remoteServerID, forKey: "serverID")
                         object.setValue(SyncStatus.synced.rawValue, forKey: "syncStatus")
@@ -376,10 +380,11 @@ final class AppStore: ObservableObject {
             }
         }
         save()
+        reload()   // uploads must show even when the fetch below fails
         
         // 2. Fetch and reconcile
         do {
-            let remote = try await CardAPIService.fetchAllCards()
+            let remote = try await fetchRemoteCards()
             reconcileCards(remote)
         } catch {
             // Offline / unreachable → keep the cached cards.
@@ -392,31 +397,37 @@ final class AppStore: ObservableObject {
     private func pushNewCard(_ card: Card) {
         guard hasCredentials() else { return }
         setSyncStatus(.syncing, for: card.id)
-        let collection = card.collectionID.flatMap { cdCollection(id: $0) }
-        let knownFolderID = collection?.value(forKey: "serverID") as? String
-        // A known collection without a folder id yet: wait for its in-flight
-        // create, or (no create / it failed) stay offline so syncCards uploads
-        // the card later with its folder instead of dropping it in Uncategorized.
-        let pendingFolder = (knownFolderID == nil && collection != nil)
-            ? card.collectionID.flatMap { pendingFolderCreates[$0] } : nil
-        let needsFolder = knownFolderID == nil && collection != nil
+        // A collection without a folder id yet: wait for its in-flight create, or
+        // (no create / it failed) stay offline so syncCards uploads the card later
+        // with its folder instead of dropping it in Uncategorized. The card is
+        // re-read after every wait: deleted -> never POSTed; edits and collection
+        // changes made meanwhile are what gets sent.
         Task {
-            var folderServerID = knownFolderID
-            if let pendingFolder { folderServerID = await pendingFolder.value }
-            if needsFolder && folderServerID == nil {
-                setSyncStatus(.offline, for: card.id)
-                return
-            }
-            do {
-                let remote = try await createCard(card, folderServerID)
-                if let object = cdCard(id: card.id) {
-                    object.setValue(remote.serverID, forKey: "serverID")
-                    object.setValue(SyncStatus.synced.rawValue, forKey: "syncStatus")
-                    save()
-                    reload()
+            while true {
+                guard let object = cdCard(id: card.id) else { return }
+                let current = self.card(from: object)
+                let collection = current.collectionID.flatMap { cdCollection(id: $0) }
+                let folderServerID = collection?.value(forKey: "serverID") as? String
+                if folderServerID == nil, collection != nil {
+                    if let pending = current.collectionID.flatMap({ pendingFolderCreates[$0] }) {
+                        _ = await pending.value
+                        continue
+                    }
+                    setSyncStatus(.offline, for: card.id)
+                    return
                 }
-            } catch {
-                setSyncStatus(.offline, for: card.id)
+                do {
+                    let remote = try await createCard(current, folderServerID)
+                    if let object = cdCard(id: card.id) {
+                        object.setValue(remote.serverID, forKey: "serverID")
+                        object.setValue(SyncStatus.synced.rawValue, forKey: "syncStatus")
+                        save()
+                        reload()
+                    }
+                } catch {
+                    setSyncStatus(.offline, for: card.id)
+                }
+                return
             }
         }
     }
