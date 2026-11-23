@@ -206,6 +206,7 @@ final class AppStore: ObservableObject {
     func deleteCollection(id: UUID) {
         let serverID = collections.first(where: { $0.id == id })?.serverID
         if let object = cdCollection(id: id) {
+            detachCards(fromCollection: id, serverID: object.value(forKey: "serverID") as? String)
             context.delete(object)
             save()
             reload()
@@ -213,6 +214,22 @@ final class AppStore: ObservableObject {
         }
         guard KeychainService.hasCredentials, let serverID else { return }
         Task { try? await CollectionAPIService.deleteCollection(serverID: serverID) }
+    }
+
+    /// Drop a collection that is about to be deleted from its cards, so none
+    /// points at it: each card falls back to its next collection, or to
+    /// Uncategorized when it has none left.
+    private func detachCards(fromCollection id: UUID, serverID: String?) {
+        let request = NSFetchRequest<NSManagedObject>(entityName: "CDCard")
+        for card in (try? context.fetch(request)) ?? [] {
+            let memberships = decodeTags(card.value(forKey: "folderIDsJSON") as? String)
+            let remaining = memberships.filter { $0 != serverID }
+            guard (card.value(forKey: "collectionID") as? UUID) == id || remaining != memberships else { continue }
+            card.setValue(encodeTags(remaining), forKey: "folderIDsJSON")
+            if (card.value(forKey: "collectionID") as? UUID) == id {
+                card.setValue(primaryCollectionID(for: remaining), forKey: "collectionID")
+            }
+        }
     }
 
     // MARK: - Collections API sync
@@ -384,13 +401,29 @@ final class AppStore: ObservableObject {
         do {
             let dto = try await CardAPIService.setFolders(serverID: serverID, folderIDs: folderServerIDs)
             let confirmed = dto.folderServerIDs.isEmpty ? folderServerIDs : dto.folderServerIDs
-            cdCard(id: cardID)?.setValue(encodeTags(confirmed), forKey: "folderIDsJSON")
-            save()
-            reload()
+            applyCardCollections(cardID: cardID, folderServerIDs: confirmed)
             return true
         } catch {
             return false
         }
+    }
+
+    /// Store the card's confirmed collections (primary first) locally, and
+    /// point its local primary at the first one known on this device.
+    func applyCardCollections(cardID: UUID, folderServerIDs: [String]) {
+        guard let object = cdCard(id: cardID) else { return }
+        object.setValue(encodeTags(folderServerIDs), forKey: "folderIDsJSON")
+        object.setValue(primaryCollectionID(for: folderServerIDs), forKey: "collectionID")
+        save()
+        reload()
+    }
+
+    /// Local id of the first collection in `folderServerIDs` that exists on
+    /// this device (the API lists the primary first); nil when none does.
+    private func primaryCollectionID(for folderServerIDs: [String]) -> UUID? {
+        folderServerIDs.lazy
+            .compactMap { self.cdCollection(serverID: $0)?.value(forKey: "id") as? UUID }
+            .first
     }
 
     // MARK: - Combined sync
