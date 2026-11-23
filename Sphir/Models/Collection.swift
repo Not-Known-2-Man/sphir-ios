@@ -63,6 +63,11 @@ struct Collection: Identifiable, Hashable {
 }
 
 extension Collection {
+    /// "1 item" for one, "N items" otherwise (including "0 items").
+    static func itemCountLabel(_ count: Int) -> String {
+        count == 1 ? "1 item" : "\(count) items"
+    }
+
     /// Stable IDs for the seeded collections so deep links are reproducible
     /// and match the share extension's fallback collections.
     private static func fixedID(_ n: Int) -> UUID {
