@@ -355,7 +355,7 @@ final class AppStore: ObservableObject {
         
         // 2. Fetch and reconcile
         do {
-            let remote = try await CardAPIService.fetchCards()
+            let remote = try await CardAPIService.fetchAllCards()
             reconcileCards(remote)
         } catch {
             // Offline / unreachable → keep the cached cards.
