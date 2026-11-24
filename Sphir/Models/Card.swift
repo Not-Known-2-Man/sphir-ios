@@ -7,15 +7,6 @@
 
 import Foundation
 
-/// The kind of content a card holds.
-enum CardType: String, CaseIterable, Codable {
-    case text
-    case media
-    case business
-    case product
-    case originalScribe
-}
-
 /// The app a card was captured from.
 enum SourceApp: String, CaseIterable, Codable {
     case safari
@@ -79,50 +70,6 @@ struct Card: Identifiable, Hashable {
         self.createdAt = createdAt
         self.collectionID = collectionID
         self.serverID = serverID
-    }
-}
-
-extension CardType {
-    /// Emoji shown at the leading edge of the option row.
-    var emoji: String {
-        switch self {
-        case .text:           return "📝"
-        case .media:          return "🎬"
-        case .business:       return "💼"
-        case .product:        return "📦"
-        case .originalScribe: return "✍️"
-        }
-    }
-
-    var title: String {
-        switch self {
-        case .text:           return "Text"
-        case .media:          return "Media"
-        case .business:       return "Business"
-        case .product:        return "Product"
-        case .originalScribe: return "Original Scribe"
-        }
-    }
-
-    var subtitle: String {
-        switch self {
-        case .text:           return "Articles, blogs, documents"
-        case .media:          return "Videos, audio, images"
-        case .business:       return "Contacts, companies"
-        case .product:        return "Items, services"
-        case .originalScribe: return "Your own content"
-        }
-    }
-
-    /// SF Symbol representing the card type.
-    var iconName: String {
-        switch self {
-        case .text:           return "doc.text"
-        case .media:          return "play.rectangle"
-        case .business:       return "briefcase"
-        case .product:        return "shippingbox"
-        case .originalScribe: return "pencil.and.outline"
-        }
     }
 }
 

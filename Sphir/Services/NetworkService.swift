@@ -157,3 +157,10 @@ final class NetworkService {
         }
     }
 }
+
+extension NetworkService {
+    /// GET /api/v1/preview?url=… (S8). Usable from the app and SphirShare.
+    func preview(url: String) async throws -> LinkPreview {
+        try await request("/api/v1/preview", query: ["url": url])
+    }
+}
