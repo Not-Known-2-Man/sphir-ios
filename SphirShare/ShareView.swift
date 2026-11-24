@@ -19,25 +19,6 @@ enum ExtensionScreen {
     case success
 }
 
-struct SharedContent {
-    var urlString: String?
-    var text: String?
-    var sharedImageData: Data?
-
-    var isLink: Bool { !(urlString ?? "").isEmpty }
-    var isImage: Bool { sharedImageData != nil }
-}
-
-struct SharePayload {
-    let collectionID: UUID?
-    let title: String
-    let description: String
-    let urlString: String?
-    let bodyText: String?
-    let imageData: Data?
-    let tags: [String]
-}
-
 struct ShareView: View {
     let content: SharedContent
     let collections: [SharedCollectionDTO]

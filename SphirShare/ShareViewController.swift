@@ -50,9 +50,10 @@ final class ShareViewController: UIViewController {
         let stored = SharedInbox.loadCollections()
         let collections = stored.isEmpty ? SharedInbox.fallbackCollections : stored
 
-        let root = ShareView(
+        let root = ShareRoot(
             content: content,
             collections: collections,
+            storedCollections: stored,
             onSave: { [weak self] payload in
                 self?.save(payload) ?? UUID()
             },
@@ -64,6 +65,9 @@ final class ShareViewController: UIViewController {
             },
             onView: { [weak self] cardID in
                 self?.openCard(cardID)
+            },
+            onOpenApp: { [weak self] in
+                self?.openApp()
             },
             onDismiss: { [weak self] in
                 self?.finish()
@@ -88,6 +92,7 @@ final class ShareViewController: UIViewController {
         var urlString: String?
         var text: String?
         var sharedImageData: Data?
+        var snapshot: PageSnapshot?
 
         guard let items = extensionContext?.inputItems as? [NSExtensionItem] else {
             return SharedContent()
@@ -101,6 +106,10 @@ final class ShareViewController: UIViewController {
             }
 
             for provider in item.attachments ?? [] {
+                if snapshot == nil,
+                   provider.hasItemConformingToTypeIdentifier(UTType.propertyList.identifier) {
+                    snapshot = await loadPageSnapshot(provider)
+                }
                 if urlString == nil,
                    provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
                     urlString = await loadWebURL(provider)
@@ -114,7 +123,19 @@ final class ShareViewController: UIViewController {
             }
         }
 
-        return SharedContent(urlString: urlString, text: text, sharedImageData: sharedImageData)
+        if urlString == nil { urlString = snapshot?.url }
+        let html = snapshot?.html
+        return SharedContent(urlString: urlString, text: text, sharedImageData: sharedImageData,
+                             pageHTML: (html?.isEmpty ?? true) ? nil : html)
+    }
+
+    /// The result of ClipPreprocess.js (Safari only).
+    private func loadPageSnapshot(_ provider: NSItemProvider) async -> PageSnapshot? {
+        await withCheckedContinuation { continuation in
+            provider.loadItem(forTypeIdentifier: UTType.propertyList.identifier, options: nil) { data, _ in
+                continuation.resume(returning: PageSnapshot.parse(data))
+            }
+        }
     }
 
     private func loadWebURL(_ provider: NSItemProvider) async -> String? {
@@ -177,32 +198,52 @@ final class ShareViewController: UIViewController {
             sourceAppRaw: isLink ? "safari" : (isImage ? "photos" : "messages"),
             collectionID: payload.collectionID,
             createdAt: Date(),
-            tags: payload.tags
+            tags: payload.tags,
+            cardTypeRaw: payload.cardTypeRaw,
+            price: payload.price,
+            imageURL: payload.imageURL
         )
         SharedInbox.enqueueCard(card)
         return id
     }
 
-    /// Open the saved card in the app via its deep link, then finish.
-    private func openCard(_ id: UUID) {
-        if let url = URL(string: "sphir://card/\(id.uuidString)") {
-            self.extensionContext?.open(url) { [weak self] success in
-                if success {
-                    self?.finish()
-                } else {
-                    // Fallback to the UIApplication selector reflection bypass hack
-                    if let applicationClass = NSClassFromString("UIApplication") as? NSObject.Type {
-                        let sharedApplication = applicationClass.perform(Selector(("sharedApplication")))?
-                            .takeUnretainedValue()
-                        let nsURL = url as NSURL
-                        _ = sharedApplication?.perform(Selector(("openURL:")), with: nsURL)
-                    }
-                    self?.finish()
-                }
+    /// Open the saved card in the app via its deep link (the API id after an
+    /// online save, else the queued card's local id), then finish.
+    private func openCard(_ id: String) {
+        guard let url = URL(string: "sphir://card/\(id)") else { return finish() }
+        openInApp(url)
+    }
+
+    /// Open the app (no deep link target) when the saved card has no local id yet.
+    private func openApp() {
+        guard let url = URL(string: "sphir://home") else { return finish() }
+        openInApp(url)
+    }
+
+    /// extensionContext.open only works for widgets, and share extensions cannot call
+    /// UIApplication.open, so walk the responder chain to the host UIApplication and call
+    /// open(_:options:completionHandler:) through the Objective-C runtime.
+    private func openInApp(_ url: URL) {
+        if openThroughResponderChain(url) { return finish() }
+        extensionContext?.open(url) { [weak self] _ in self?.finish() }
+    }
+
+    private func openThroughResponderChain(_ url: URL) -> Bool {
+        let selector = NSSelectorFromString("openURL:options:completionHandler:")
+        guard let applicationClass = NSClassFromString("UIApplication") else { return false }
+        var responder: UIResponder? = self
+        while let current = responder {
+            if current.isKind(of: applicationClass), current.responds(to: selector) {
+                typealias OpenURL = @convention(c) (
+                    AnyObject, Selector, NSURL, NSDictionary, (@convention(block) (Bool) -> Void)?
+                ) -> Void
+                let open = unsafeBitCast(current.method(for: selector), to: OpenURL.self)
+                open(current, selector, url as NSURL, NSDictionary(), nil)
+                return true
             }
-        } else {
-            finish()
+            responder = current.next
         }
+        return false
     }
 
     private func finish() {

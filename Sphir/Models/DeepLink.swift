@@ -6,6 +6,7 @@
 //
 //  Supported forms:
 //    sphir://card/<uuid>            sphir://collection/<uuid>
+//    sphir://card/<server id>       (a card the app has not imported yet)
 //    https://sphir.io/card/<uuid>   https://sphir.io/collection/<uuid>
 //
 
@@ -13,6 +14,8 @@ import Foundation
 
 enum DeepLink: Equatable {
     case card(UUID)
+    /// A card by its API id (e.g. just saved from the share extension).
+    case cardServerID(String)
     case collection(UUID)
 
     init?(url: URL) {
@@ -36,7 +39,14 @@ enum DeepLink: Equatable {
             return nil
         }
 
-        guard let kind, let idString, let id = UUID(uuidString: idString) else { return nil }
+        guard let kind, let idString else { return nil }
+
+        guard let id = UUID(uuidString: idString) else {
+            // Only cards can be addressed by server id.
+            guard kind.lowercased() == "card", Self.isServerID(idString) else { return nil }
+            self = .cardServerID(idString)
+            return
+        }
 
         switch kind.lowercased() {
         case "card":       self = .card(id)
@@ -46,8 +56,18 @@ enum DeepLink: Equatable {
     }
 }
 
+extension DeepLink {
+    /// API ids are integers; nothing else is routable by server id.
+    fileprivate static func isServerID(_ s: String) -> Bool {
+        !s.isEmpty && s.count <= 20 && s.unicodeScalars.allSatisfy { $0.value >= 48 && $0.value <= 57 }
+    }
+}
+
 extension Card {
     var deepLinkURL: URL? { URL(string: "sphir://card/\(id.uuidString)") }
+
+    /// Link to a card by its API id, for cards saved online by the extension.
+    static func deepLinkURL(serverID: String) -> URL? { URL(string: "sphir://card/\(serverID)") }
 }
 
 extension Collection {

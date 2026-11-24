@@ -2,64 +2,90 @@
 //  CardFlowCoordinator.swift
 //  Sphir
 //
-//  Shared state driving the multi-step "+Card" creation flow.
-//  Hoisting the presentation flags into one object lets any step
-//  collapse the whole stack ("dismiss all") or rewind to Step 1
-//  ("add another") without threading bindings through every view.
+//  Shared state driving the one-screen "+Card" flow (S5): a single field for a
+//  link, plus "Photo or screenshot" and "Write your own". Hoisting the
+//  presentation flags into one object lets any step collapse the whole stack
+//  ("dismiss all") without threading bindings through every view.
 //
 
 import SwiftUI
 import Combine
 
+/// A link the user pasted, on its way to the preview card.
+struct ClipLink: Identifiable, Equatable {
+    let id = UUID()
+    let url: String
+}
+
+/// What the "Photo or screenshot" row offers.
+enum PhotoChoice: Equatable {
+    case library
+    case camera
+}
+
 @MainActor
 final class CardFlowCoordinator: ObservableObject {
     // Presentation flags — each bound to a sheet/cover in the flow.
-    @Published var showType = false             // Step 1 sheet
-    @Published var showSource = false           // Step 2 sheet
-    @Published var showForm = false             // Step 3 full-screen cover
-    @Published var showScreenshotForm = false   // Screenshot + OCR full-screen cover
-    @Published var showPhotoForm = false        // Photos / Camera full-screen cover
+    @Published var showAdd = false              // the +Card sheet
+    @Published var clipLink: ClipLink?          // preview card + saved screen (full-screen cover)
+    @Published var showForm = false             // "Write your own" full-screen cover
+    @Published var showScreenshotForm = false   // Photo / screenshot + OCR full-screen cover
+    @Published var showPhotoForm = false        // Photos / Camera full-screen cover (PhotoCardView)
 
-    // Selections carried across steps.
+    // Selections carried into the forms.
     @Published var selectedType: CardType?
     @Published var selectedSource: CardSource?
+
+    /// "View card" was tapped on the saved screen; the dashboard opens it once
+    /// the sheet is gone (id for sphir://card/<id>).
+    @Published var pendingCardLink: String?
 
     /// Begin the flow from the dashboard.
     func start() {
         selectedType = nil
         selectedSource = nil
-        showSource = false
+        clipLink = nil
         showForm = false
-        showType = true
+        showScreenshotForm = false
+        showPhotoForm = false
+        pendingCardLink = nil
+        showAdd = true
     }
 
-    /// Advance from Step 1 to Step 2 with the chosen type.
-    func selectType(_ type: CardType) {
-        selectedType = type
-        showSource = true
+    /// A pasted link goes to the same preview card as the share extension.
+    /// Input that is not a link changes nothing.
+    func openLink(_ text: String) {
+        guard let url = AddCardInput.link(from: text) else { return }
+        clipLink = ClipLink(url: url)
     }
 
-    /// Advance from Step 2 to Step 3 with the chosen source.
-    func selectSource(_ source: CardSource) {
-        selectedSource = source
-        showForm = true
-    }
-
-    /// Advance from Step 2 into the screenshot + OCR flow.
-    func selectScreenshots() {
+    /// "Photo or screenshot": the existing photo/screenshot + OCR path.
+    func openPhoto() {
         selectedSource = .screenshots
         showScreenshotForm = true
     }
 
-    /// Advance from Step 2 into the Photos or Camera flow.
-    func selectPhotos() {
-        selectedSource = .photos
+    /// "Take a photo": the existing camera path (CameraPicker -> PhotoCardView).
+    func openCamera() {
+        selectedSource = .camera
         showPhotoForm = true
     }
 
-    func selectCamera() {
-        selectedSource = .camera
-        showPhotoForm = true
+    /// Camera is only offered when the device has one (not on the Simulator).
+    nonisolated static func photoChoices(cameraAvailable: Bool) -> [PhotoChoice] {
+        cameraAvailable ? [.library, .camera] : [.library]
+    }
+
+    /// "Write your own": the Original Scribe form.
+    func openWrite() {
+        selectedType = .originalScribe
+        showForm = true
+    }
+
+    /// "View card" on the saved screen: close the flow, then open the card.
+    func viewCard(id: String) {
+        pendingCardLink = id
+        dismissAll()
     }
 
     /// Collapse the entire flow back to the dashboard.
@@ -68,15 +94,15 @@ final class CardFlowCoordinator: ObservableObject {
         // it in one dismissal. Flipping every flag at once raced the nested
         // dismissals and could leave "+ Card" unable to present again.
         // start() resets the child flags before the next run.
-        showType = false
+        showAdd = false
     }
 
-    /// Rewind to Step 1, keeping the type sheet presented.
+    /// Back to the +Card screen, ready for another card.
     func addAnother() {
+        clipLink = nil
         showForm = false
         showScreenshotForm = false
         showPhotoForm = false
-        showSource = false
         selectedType = nil
         selectedSource = nil
     }

@@ -21,6 +21,7 @@ enum HTTPMethod: String {
 enum NetworkError: Error, LocalizedError {
     case invalidURL
     case unauthorized
+    case invalidCredentials
     case server(status: Int, body: String?)
     case decoding(Error)
     case transport(Error)
@@ -29,6 +30,7 @@ enum NetworkError: Error, LocalizedError {
         switch self {
         case .invalidURL:            return "Invalid request URL."
         case .unauthorized:          return "Your session expired. Please sign in again."
+        case .invalidCredentials:    return "Incorrect email or password."
         case .server(let status, _): return "The server returned an error (\(status))."
         case .decoding:              return "Couldn't read the server's response."
         case .transport:             return "Couldn't reach Sphir. Check your connection."
@@ -47,7 +49,8 @@ struct AnyEncodable: Encodable {
 struct EmptyResponse: Decodable {}
 
 final class NetworkService {
-    static let shared = NetworkService()
+    static let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    static let shared = NetworkService(allowsNetwork: !NetworkService.isRunningTests)
 
     let baseURL: URL = {
         #if DEBUG
@@ -64,11 +67,13 @@ final class NetworkService {
         return URL(string: "https://sphir-api.onrender.com")!
     }()
     private let session: URLSession
+    private let allowsNetwork: Bool
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
 
-    init(session: URLSession = .shared) {
+    init(session: URLSession = .shared, allowsNetwork: Bool = true) {
         self.session = session
+        self.allowsNetwork = allowsNetwork
         decoder = JSONDecoder()
         encoder = JSONEncoder()
     }
@@ -82,6 +87,10 @@ final class NetworkService {
         body: Encodable? = nil,
         authorized: Bool = true
     ) async throws -> T {
+        guard allowsNetwork else {
+            throw NetworkError.transport(URLError(.notConnectedToInternet))
+        }
+
         var components = URLComponents(
             url: baseURL.appendingPathComponent(path),
             resolvingAgainstBaseURL: false
@@ -110,10 +119,8 @@ final class NetworkService {
         }
 
         #if DEBUG
-        print("[NET] \(method.rawValue) \(url)")
-        if let bodyData = request.httpBody, let bodyStr = String(data: bodyData, encoding: .utf8) {
-            print("[NET] Body: \(bodyStr)")
-        }
+        // Never print request or response bodies: they carry passwords and tokens.
+        print("[NET] \(method.rawValue) \(url.path)")
         #endif
 
         let data: Data
@@ -130,15 +137,16 @@ final class NetworkService {
 
         #if DEBUG
         print("[NET] Status: \(http.statusCode)")
-        if let responseStr = String(data: data, encoding: .utf8) {
-            print("[NET] Response: \(responseStr)")
-        }
         #endif
 
         if http.statusCode == 401 {
-            KeychainService.clear()
-            NotificationCenter.default.post(name: .sphirUnauthorized, object: nil)
-            throw NetworkError.unauthorized
+            if authorized {
+                KeychainService.clear()
+                NotificationCenter.default.post(name: .sphirUnauthorized, object: nil)
+                throw NetworkError.unauthorized
+            } else {
+                throw NetworkError.invalidCredentials
+            }
         }
 
         guard (200..<300).contains(http.statusCode) else {
@@ -156,4 +164,29 @@ final class NetworkService {
             throw NetworkError.decoding(error)
         }
     }
+}
+
+extension NetworkService {
+    /// GET /api/v1/preview?url=… (S8). Usable from the app and SphirShare.
+    func preview(url: String) async throws -> LinkPreview {
+        try await request("/api/v1/preview", query: ["url": url])
+    }
+
+    /// POST /api/v1/preview {url, html} with the page Safari already loaded.
+    /// Without HTML, or when the POST is rejected (older API without POST,
+    /// body too large, …), uses GET. 401 and network errors are not retried.
+    func preview(url: String, html: String?) async throws -> LinkPreview {
+        guard let html, !html.isEmpty else { return try await preview(url: url) }
+        do {
+            return try await request("/api/v1/preview", method: .post,
+                                     body: PreviewHTMLRequest(url: url, html: html))
+        } catch NetworkError.server {
+            return try await preview(url: url)
+        }
+    }
+}
+
+private struct PreviewHTMLRequest: Encodable {
+    let url: String
+    let html: String
 }

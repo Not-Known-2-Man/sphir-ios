@@ -2,7 +2,7 @@
 //  CollectionDetailView.swift
 //  Sphir
 //
-//  Detail for a collection: header info plus the cards it contains.
+//  Detail for a collection: header info plus 2-column grid of cards matching Figma.
 //
 
 import SwiftUI
@@ -19,12 +19,17 @@ struct CollectionDetailView: View {
 
     private var cards: [Card] { appStore.cards(in: collection.id) }
 
+    private let columns: [GridItem] = [
+        GridItem(.flexible(), spacing: 14, alignment: .top),
+        GridItem(.flexible(), spacing: 14, alignment: .top)
+    ]
+
     var body: some View {
         VStack(spacing: 0) {
             DetailTopBar(title: "Collection", backIdentifier: "collectionDetailBackButton") { dismiss() }
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 18) {
                     header
 
                     if cards.isEmpty {
@@ -33,23 +38,25 @@ struct CollectionDetailView: View {
                             title: "No cards yet",
                             message: "Add one with “+ Card”, or share a link to Sphir."
                         )
-                    }
-
-                    ForEach(cards) { card in
-                        NavigationLink(value: card) {
-                            CardRowView(card: card)
-                        }
-                        .buttonStyle(.plain)
-                        .contextMenu {
-                            Button {
-                                editingCard = card
-                            } label: {
-                                Label("Edit", systemImage: "pencil")
-                            }
-                            Button(role: .destructive) {
-                                pendingDelete = card
-                            } label: {
-                                Label("Delete", systemImage: "trash")
+                    } else {
+                        LazyVGrid(columns: columns, spacing: 14) {
+                            ForEach(cards) { card in
+                                NavigationLink(value: card) {
+                                    CardTileView(card: card)
+                                }
+                                .buttonStyle(.plain)
+                                .contextMenu {
+                                    Button {
+                                        editingCard = card
+                                    } label: {
+                                        Label("Edit", systemImage: "pencil")
+                                    }
+                                    Button(role: .destructive) {
+                                        pendingDelete = card
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
                             }
                         }
                     }
@@ -90,7 +97,7 @@ struct CollectionDetailView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(collection.name)
-                .font(SphirFont.heading(22, weight: .bold))
+                .font(SphirFont.heading(28, weight: .bold))
                 .foregroundColor(SphirColor.textPrimary)
                 .accessibilityAddTraits(.isHeader)
 
@@ -101,20 +108,105 @@ struct CollectionDetailView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            HStack(spacing: 10) {
-                PrivacyBadge(privacy: collection.privacy)
-                Text("\(cards.count) items")
-                    .font(SphirFont.body(12))
-                    .foregroundColor(SphirColor.mutedText)
+            HStack(spacing: 5) {
+                Image(systemName: collection.privacy.iconName)
+                    .font(.system(size: 11))
+                Text("\(collection.privacy.label) · \(Collection.itemCountLabel(cards.count))")
+                    .font(SphirFont.body(12, weight: .medium))
             }
+            .foregroundColor(SphirColor.mutedText)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Capsule().fill(SphirColor.cardBackgroundAlt))
+            .overlay(Capsule().stroke(SphirColor.border, lineWidth: 1))
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(collection.privacy.label), \(cards.count) items")
+            .accessibilityLabel("\(collection.privacy.label), \(Collection.itemCountLabel(cards.count))")
         }
         .padding(.bottom, 4)
     }
 }
 
-/// A single card row inside a collection.
+/// A 2-column card tile matching the Figma collection grid.
+struct CardTileView: View {
+    let card: Card
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            cover
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(CardType.label(for: card.cardType, url: card.content))
+                    .font(SphirFont.body(10, weight: .bold).smallCaps())
+                    .foregroundColor(SphirColor.taupe)
+                    .lineLimit(1)
+
+                Text(card.title)
+                    .font(SphirFont.body(13, weight: .bold))
+                    .foregroundColor(SphirColor.textPrimary)
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, 10)
+            .padding(.top, 8)
+            .padding(.bottom, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(SphirColor.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(SphirColor.border, lineWidth: 1)
+        )
+        .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder
+    private var cover: some View {
+        switch CardDetailView.coverSource(for: card) {
+        case .localData(let data):
+            if let uiImage = UIImage(data: data) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(height: 120)
+                    .frame(maxWidth: .infinity)
+                    .clipped()
+            } else {
+                coverPlaceholder
+            }
+        case .remoteURL(let url):
+            AsyncImage(url: url) { phase in
+                if let image = phase.image {
+                    image
+                        .resizable()
+                        .scaledToFill()
+                        .frame(height: 120)
+                        .frame(maxWidth: .infinity)
+                        .clipped()
+                } else {
+                    coverPlaceholder
+                }
+            }
+        case .placeholder:
+            coverPlaceholder
+        }
+    }
+
+    private var coverPlaceholder: some View {
+        Rectangle()
+            .fill(SphirColor.cardBackgroundAlt)
+            .frame(height: 120)
+            .frame(maxWidth: .infinity)
+            .overlay(
+                Image(systemName: card.cardType.iconName)
+                    .font(.system(size: 24))
+                    .foregroundColor(SphirColor.lightTaupe)
+            )
+    }
+}
+
+/// A single card row inside a collection or dashboard.
 struct CardRowView: View {
     let card: Card
 
@@ -155,8 +247,6 @@ struct CardRowView: View {
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 12).fill(SphirColor.cardBackground))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(SphirColor.border, lineWidth: 1))
-        // Combine (not .ignore) so VoiceOver reads one element while the child
-        // text stays queryable by UI tests.
         .accessibilityElement(children: .combine)
     }
 

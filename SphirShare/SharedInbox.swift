@@ -1,10 +1,15 @@
 //
 //  SharedInbox.swift
-//  SphirShare
+//  Sphir + SphirShare
 //
-//  Mirror of Sphir/State/SharedInbox.swift, compiled into the extension
-//  target. The two targets are separate binaries, so each needs its own
-//  copy of the App Group storage code. Keep these two files in sync.
+//  App Group–backed bridge between the main app and the share extension.
+//  The main app publishes its collections here so the extension can populate
+//  its picker; the extension enqueues captured cards here so the main app can
+//  import them on next launch.
+//
+//  This file exists twice, byte for byte: Sphir/State/SharedInbox.swift (app
+//  target) and SphirShare/SharedInbox.swift (extension target). The targets
+//  are separate binaries, so each compiles its own copy. Keep them identical.
 //
 
 import Foundation
@@ -13,6 +18,15 @@ import Foundation
 struct SharedCollectionDTO: Codable, Identifiable, Hashable {
     let id: UUID
     let name: String
+    /// The folder's id on the API (nil until the collection has synced, and for
+    /// snapshots published by an older build).
+    let serverID: String?
+
+    init(id: UUID, name: String, serverID: String? = nil) {
+        self.id = id
+        self.name = name
+        self.serverID = serverID
+    }
 }
 
 /// A card captured by a share extension, awaiting import by the main app.
@@ -31,6 +45,13 @@ struct SharedCardDTO: Codable, Identifiable, Hashable {
     /// Tags chosen in the share sheet. Optional so cards queued by an older
     /// build still decode.
     let tags: [String]?
+    /// CardType rawValue of a queued clip ("product", "video", …). Optional so
+    /// cards queued by an older build still decode (they import as plain text).
+    let cardTypeRaw: String?
+    /// Display price of a queued clip (e.g. "$29.99").
+    let price: String?
+    /// Cover image URL of a queued clip.
+    let imageURL: String?
 
     init(
         id: UUID,
@@ -42,7 +63,10 @@ struct SharedCardDTO: Codable, Identifiable, Hashable {
         sourceAppRaw: String = "safari",
         collectionID: UUID?,
         createdAt: Date,
-        tags: [String]? = nil
+        tags: [String]? = nil,
+        cardTypeRaw: String? = nil,
+        price: String? = nil,
+        imageURL: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -54,6 +78,9 @@ struct SharedCardDTO: Codable, Identifiable, Hashable {
         self.collectionID = collectionID
         self.createdAt = createdAt
         self.tags = tags
+        self.cardTypeRaw = cardTypeRaw
+        self.price = price
+        self.imageURL = imageURL
     }
 }
 
@@ -63,6 +90,7 @@ enum SharedInbox {
 
     private static let collectionsKey = "shared.collections"
     private static let pendingCardsKey = "shared.pendingCards"
+    private static let lastCollectionKey = "shared.lastClipCollection"
 
     private static var defaults: UserDefaults? {
         UserDefaults(suiteName: appGroupID)
@@ -80,6 +108,15 @@ enum SharedInbox {
               let decoded = try? JSONDecoder().decode([SharedCollectionDTO].self, from: data)
         else { return [] }
         return decoded
+    }
+
+    // MARK: - Last collection used by the extension
+
+    /// Server folder id (or collection UUID string when offline) of the last
+    /// collection a clip was saved to; preselected on the next clip.
+    static var lastClipCollection: String? {
+        get { defaults?.string(forKey: lastCollectionKey) }
+        set { defaults?.set(newValue, forKey: lastCollectionKey) }
     }
 
     // MARK: - Pending cards (enqueued by extensions)
@@ -105,7 +142,10 @@ enum SharedInbox {
                 sourceAppRaw: old.sourceAppRaw,
                 collectionID: newCollectionID,
                 createdAt: old.createdAt,
-                tags: old.tags
+                tags: old.tags,
+                cardTypeRaw: old.cardTypeRaw,
+                price: old.price,
+                imageURL: old.imageURL
             )
             pending[idx] = updated
             guard let data = try? JSONEncoder().encode(pending) else { return }

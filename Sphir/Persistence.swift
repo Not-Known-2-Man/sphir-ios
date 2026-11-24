@@ -97,7 +97,9 @@ final class PersistenceController {
             attribute("syncStatus", .stringAttributeType),
             attribute("createdAt", .dateAttributeType),
             attribute("collectionID", .UUIDAttributeType),
-            attribute("serverID", .stringAttributeType)
+            attribute("serverID", .stringAttributeType),
+            attribute("price", .stringAttributeType),
+            attribute("folderIDsJSON", .stringAttributeType)
         ]
 
         model.entities = [collection, card]

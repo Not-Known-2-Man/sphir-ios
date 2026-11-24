@@ -79,9 +79,10 @@ struct DashboardView: View {
                 }
             }
         }
-        // Step 1 of the "+Card" flow.
-        .sheet(isPresented: $cardFlow.showType) {
-            SelectCardTypeView()
+        // The one-screen "+Card" flow. When it closes, pull the new card (saved
+        // online by the clip flow) and open it if "View card" was tapped.
+        .sheet(isPresented: $cardFlow.showAdd, onDismiss: cardFlowDidClose) {
+            AddCardView()
                 .environmentObject(cardFlow)
                 .environmentObject(appStore)
         }
@@ -198,6 +199,16 @@ struct DashboardView: View {
                     alignment: .bottom
                 )
         )
+    }
+
+    /// Runs when the +Card sheet is gone.
+    private func cardFlowDidClose() {
+        if let id = cardFlow.pendingCardLink, let url = Card.deepLinkURL(serverID: id) {
+            cardFlow.pendingCardLink = nil
+            router.handle(url, store: appStore)   // syncs first when the card is not local yet
+        } else {
+            Task { await appStore.syncFromAPI() }
+        }
     }
 
     private var addCardButton: some View {
@@ -399,7 +410,10 @@ struct DashboardView: View {
         LazyVGrid(columns: gridColumns, spacing: 16) {
             ForEach(filteredCollections) { collection in
                 NavigationLink(value: collection) {
-                    CollectionCardView(collection: collection)
+                    CollectionCardView(
+                        collection: collection,
+                        covers: CollectionCover.sources(for: appStore.cards(in: collection.id))
+                    )
                 }
                 .buttonStyle(.plain)
             }
