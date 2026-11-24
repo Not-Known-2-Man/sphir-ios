@@ -220,9 +220,8 @@ struct DeleteAccountSheet: View {
                     .foregroundColor(SphirColor.mutedText)
                     .fixedSize(horizontal: false, vertical: true)
 
-                SecureField("Current password", text: $password)
+                PasswordField(placeholder: "Current password", text: $password, id: "deleteAccountPasswordField")
                     .textFieldStyle(.roundedBorder)
-                    .accessibilityIdentifier("deleteAccountPasswordField")
 
                 if let errorMessage {
                     Text(errorMessage)
