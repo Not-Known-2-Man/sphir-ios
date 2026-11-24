@@ -210,30 +210,40 @@ final class ShareViewController: UIViewController {
     /// Open the saved card in the app via its deep link (the API id after an
     /// online save, else the queued card's local id), then finish.
     private func openCard(_ id: String) {
-        if let url = URL(string: "sphir://card/\(id)") {
-            self.extensionContext?.open(url) { [weak self] success in
-                if success {
-                    self?.finish()
-                } else {
-                    // Fallback to the UIApplication selector reflection bypass hack
-                    if let applicationClass = NSClassFromString("UIApplication") as? NSObject.Type {
-                        let sharedApplication = applicationClass.perform(Selector(("sharedApplication")))?
-                            .takeUnretainedValue()
-                        let nsURL = url as NSURL
-                        _ = sharedApplication?.perform(Selector(("openURL:")), with: nsURL)
-                    }
-                    self?.finish()
-                }
-            }
-        } else {
-            finish()
-        }
+        guard let url = URL(string: "sphir://card/\(id)") else { return finish() }
+        openInApp(url)
     }
 
     /// Open the app (no deep link target) when the saved card has no local id yet.
     private func openApp() {
         guard let url = URL(string: "sphir://home") else { return finish() }
+        openInApp(url)
+    }
+
+    /// extensionContext.open only works for widgets, and share extensions cannot call
+    /// UIApplication.open, so walk the responder chain to the host UIApplication and call
+    /// open(_:options:completionHandler:) through the Objective-C runtime.
+    private func openInApp(_ url: URL) {
+        if openThroughResponderChain(url) { return finish() }
         extensionContext?.open(url) { [weak self] _ in self?.finish() }
+    }
+
+    private func openThroughResponderChain(_ url: URL) -> Bool {
+        let selector = NSSelectorFromString("openURL:options:completionHandler:")
+        guard let applicationClass = NSClassFromString("UIApplication") else { return false }
+        var responder: UIResponder? = self
+        while let current = responder {
+            if current.isKind(of: applicationClass), current.responds(to: selector) {
+                typealias OpenURL = @convention(c) (
+                    AnyObject, Selector, NSURL, NSDictionary, (@convention(block) (Bool) -> Void)?
+                ) -> Void
+                let open = unsafeBitCast(current.method(for: selector), to: OpenURL.self)
+                open(current, selector, url as NSURL, NSDictionary(), nil)
+                return true
+            }
+            responder = current.next
+        }
+        return false
     }
 
     private func finish() {

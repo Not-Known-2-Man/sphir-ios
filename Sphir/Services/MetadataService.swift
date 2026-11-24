@@ -17,6 +17,8 @@ struct LinkMetadata {
     var title: String?
     var description: String?
     var imageData: Data?
+    /// og:image / twitter:image of the page (may be http; callers upgrade it).
+    var imageURL: String?
 }
 
 enum MetadataService {
@@ -25,10 +27,11 @@ enum MetadataService {
         guard let url = URL(string: urlString) else { return nil }
 
         async let linkPresentation = fetchLinkPresentation(url: url)
-        async let description = fetchOGDescription(url: url)
+        async let page = fetchPageMeta(url: url)
 
-        let (lp, desc) = await (linkPresentation, description)
-        return LinkMetadata(title: lp.title, description: desc, imageData: lp.imageData)
+        let (lp, pageMeta) = await (linkPresentation, page)
+        return LinkMetadata(title: lp.title, description: pageMeta.description,
+                            imageData: lp.imageData, imageURL: pageMeta.imageURL)
     }
 
     // MARK: - LinkPresentation (title + image)
@@ -75,8 +78,8 @@ enum MetadataService {
 
     // MARK: - og:description (HTML fetch + parse)
 
-    private static func fetchOGDescription(url: URL) async -> String? {
-        guard url.scheme == "http" || url.scheme == "https" else { return nil }
+    private static func fetchPageMeta(url: URL) async -> (description: String?, imageURL: String?) {
+        guard url.scheme == "http" || url.scheme == "https" else { return (nil, nil) }
 
         var request = URLRequest(url: url)
         request.timeoutInterval = 10
@@ -85,14 +88,29 @@ enum MetadataService {
             forHTTPHeaderField: "User-Agent"
         )
 
-        guard let (data, _) = try? await URLSession.shared.data(for: request) else { return nil }
+        guard let (data, _) = try? await URLSession.shared.data(for: request) else { return (nil, nil) }
         guard let html = String(data: data, encoding: .utf8)
-            ?? String(data: data, encoding: .isoLatin1) else { return nil }
+            ?? String(data: data, encoding: .isoLatin1) else { return (nil, nil) }
+
+        let rawImage = metaContent(in: html, attribute: "property", value: "og:image")
+            ?? metaContent(in: html, attribute: "name", value: "twitter:image")
+            ?? metaContent(in: html, attribute: "property", value: "twitter:image")
+        var image: String?
+        if let rawImage {
+            let decoded = decodeEntities(rawImage).trimmingCharacters(in: .whitespacesAndNewlines)
+            if decoded.hasPrefix("//") {
+                image = "https:" + decoded
+            } else if decoded.hasPrefix("/") {
+                image = URL(string: decoded, relativeTo: url)?.absoluteURL.absoluteString
+            } else if !decoded.isEmpty {
+                image = decoded
+            }
+        }
 
         let raw = metaContent(in: html, attribute: "property", value: "og:description")
             ?? metaContent(in: html, attribute: "name", value: "description")
-        guard let raw, !raw.isEmpty else { return nil }
-        return decodeEntities(raw).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let raw, !raw.isEmpty else { return (nil, image) }
+        return (decodeEntities(raw).trimmingCharacters(in: .whitespacesAndNewlines), image)
     }
 
     private static func metaContent(in html: String, attribute: String, value: String) -> String? {

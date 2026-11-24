@@ -122,7 +122,7 @@ struct ClipDraft: Equatable {
         url = fallbackURL
         self.title = title
         self.description = description
-        self.imageURL = imageURL
+        self.imageURL = Self.httpsURL(imageURL)
         type = Self.typeFromDomain(url: fallbackURL)
         tags = []
         price = ""
@@ -130,16 +130,7 @@ struct ClipDraft: Equatable {
         published = ""
     }
 
-    var typeLabel: String {
-        switch type {
-        case .article: return "ARTICLE"
-        case .product: return "PRODUCT"
-        case .video:   return "VIDEO"
-        case .recipe:  return "RECIPE"
-        case .social:  return "SOCIAL"
-        default:       return "LINK"
-        }
-    }
+    var typeLabel: String { CardType.label(for: type, url: url) }
 
     /// "site · February 11, 2026" (either part may be missing).
     var sourceLine: String {
@@ -183,6 +174,14 @@ struct ClipDraft: Equatable {
         guard var host = URL(string: url)?.host?.lowercased(), !host.isEmpty else { return nil }
         if host.hasPrefix("www.") { host.removeFirst(4) }
         return host
+    }
+
+    /// iOS ATS blocks http images: upgrade to https, drop anything else.
+    static func httpsURL(_ s: String?) -> String? {
+        guard let s else { return nil }
+        if s.hasPrefix("https://") { return s }
+        if s.hasPrefix("http://") { return "https://" + s.dropFirst(7) }
+        return nil
     }
 
     private static func httpURL(_ s: String) -> String? {

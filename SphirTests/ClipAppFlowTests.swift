@@ -210,6 +210,37 @@ struct ClipAppFlowTests {
         #expect(store.cards.first { $0.title == "Lamp" }?.price == "$5")
     }
 
+    @MainActor
+    @Test func imageURLSurvivesTheStore() {
+        let store = makeStore()
+        let collection = store.addCollection(name: "Shop", privacy: .private)
+        SharedInbox.clearPendingCards()
+        SharedInbox.enqueueCard(SharedCardDTO(
+            id: UUID(), title: "Lamp", urlString: "https://a.test", collectionID: collection.id,
+            createdAt: Date(), cardTypeRaw: "product", imageURL: "https://x.test/lamp.jpg"))
+        store.importPendingSharedCards()
+        #expect(store.cards.first { $0.title == "Lamp" }?.imageURL == "https://x.test/lamp.jpg")
+    }
+
+    @MainActor
+    @Test func syncUpdatesExistingCardImageURL() throws {
+        let store = makeStore()
+        let initialDTO = try JSONDecoder().decode(BusinessDTO.self, from: Data("""
+        {"id":"srv-123","title":"Pasta","website":"https://a.test","og_image":""}
+        """.utf8))
+        store.reconcileCards([initialDTO])
+        let initialCard = try #require(store.cards.first { $0.serverID == "srv-123" })
+        #expect(initialCard.imageURL == nil)
+
+        let updatedDTO = try JSONDecoder().decode(BusinessDTO.self, from: Data("""
+        {"id":"srv-123","title":"Pasta","website":"https://a.test","og_image":"https://x.test/pasta.jpg"}
+        """.utf8))
+        store.reconcileCards([updatedDTO])
+
+        let updatedCard = try #require(store.cards.first { $0.serverID == "srv-123" })
+        #expect(updatedCard.imageURL == "https://x.test/pasta.jpg")
+    }
+
     // MARK: - +Card input
 
     @Test func linkInputNormalization() {

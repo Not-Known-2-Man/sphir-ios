@@ -84,7 +84,8 @@ final class ClipFlowModel: ObservableObject {
             draft = ClipDraft(preview: preview, fallbackURL: url)
         } else {
             let meta = await MetadataService.fetch(urlString: url)
-            draft = ClipDraft(fallbackURL: url, title: meta?.title ?? "", description: meta?.description ?? "")
+            draft = ClipDraft(fallbackURL: url, title: meta?.title ?? "", description: meta?.description ?? "",
+                              imageURL: meta?.imageURL)
             coverData = meta?.imageData
         }
         phase = .preview
@@ -453,21 +454,58 @@ private struct SavedCardView: View {
         }
     }
 
+    /// Vertical card (cover on top, text below), matching the collection grid tile.
     private var savedCard: some View {
-        HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 0) {
             CoverView(urlString: model.draft.imageURL, data: model.coverData, type: model.draft.type)
-                .frame(width: 84, height: 84)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-            VStack(alignment: .leading, spacing: 4) {
+                .padding([.horizontal, .top], 8)
+            VStack(alignment: .leading, spacing: 8) {
                 Text(model.draft.typeLabel).font(ShareFont.body(10, weight: .bold)).tracking(1).foregroundColor(ShareColor.taupe)
-                Text(model.draft.card().title).font(ShareFont.body(15, weight: .bold)).foregroundColor(ShareColor.textPrimary).lineLimit(2)
-                Text(model.draft.site).font(ShareFont.body(12)).foregroundColor(ShareColor.mutedText).lineLimit(1)
+                Text(model.draft.card().title).font(ShareFont.body(16, weight: .bold)).foregroundColor(ShareColor.textPrimary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !model.draft.tags.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(model.draft.tags, id: \.self) { tag in
+                                Text(tag)
+                                    .font(ShareFont.body(11, weight: .medium))
+                                    .foregroundColor(ShareColor.textPrimary)
+                                    .padding(.horizontal, 10).padding(.vertical, 4)
+                                    .background(Capsule().fill(ShareColor.background))
+                                    .overlay(Capsule().stroke(ShareColor.border, lineWidth: 1))
+                            }
+                        }
+                    }
+                }
+                if !model.draft.price.isEmpty {
+                    Text(model.draft.price).font(ShareFont.body(18, weight: .bold)).foregroundColor(ShareColor.textPrimary)
+                }
+                if !model.draft.description.isEmpty {
+                    Text(model.draft.description).font(ShareFont.body(13)).foregroundColor(ShareColor.textPrimary)
+                        .lineLimit(5)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if !model.draft.sourceLine.isEmpty {
+                    HStack(spacing: 6) {
+                        Image(systemName: "link").font(.system(size: 11))
+                        Text(model.draft.sourceLine).font(ShareFont.body(12)).lineLimit(1)
+                    }
+                    .foregroundColor(ShareColor.mutedText)
+                }
             }
-            Spacer(minLength: 0)
+            .padding(.horizontal, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
+        .frame(maxWidth: .infinity)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(ShareColor.border, lineWidth: 1))
+        .shadow(color: Color.black.opacity(0.08), radius: 8, y: 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("savedCardPreview")
     }
 
     private var moreCollections: some View {

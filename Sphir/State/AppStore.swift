@@ -339,52 +339,7 @@ final class AppStore: ObservableObject {
         // 2. Fetch and reconcile
         do {
             let remote = try await CardAPIService.fetchCards()
-            let localCards = fetchCards()
-            var remoteServerIDs = Set<String>()
-            
-            for dto in remote {
-                guard let remoteID = dto.serverID else { continue }
-                remoteServerIDs.insert(remoteID)
-                
-                if let existingObject = localCards.first(where: { ($0.value(forKey: "serverID") as? String) == remoteID }) {
-                    // Update text fields of the existing local card, leaving imageData untouched!
-                    existingObject.setValue(dto.title.isEmpty ? "Untitled" : dto.title, forKey: "title")
-                    existingObject.setValue(dto.description, forKey: "cardDescription")
-                    existingObject.setValue(dto.website, forKey: "content")
-                    existingObject.setValue(encodeTags(dto.tags), forKey: "tagsJSON")
-                    existingObject.setValue(dto.price, forKey: "price")
-                    existingObject.setValue(encodeTags(dto.folderServerIDs), forKey: "folderIDsJSON")
-                    
-                    if let folderServerID = dto.folderServerID,
-                       let folder = cdCollection(serverID: folderServerID) {
-                        existingObject.setValue(folder.value(forKey: "id") as? UUID, forKey: "collectionID")
-                    } else {
-                        existingObject.setValue(nil, forKey: "collectionID")
-                    }
-                    existingObject.setValue(SyncStatus.synced.rawValue, forKey: "syncStatus")
-                } else {
-                    // Create new local card
-                    var card = dto.toCard()
-                    if let folderServerID = dto.folderServerID,
-                       let folder = cdCollection(serverID: folderServerID) {
-                        card.collectionID = folder.value(forKey: "id") as? UUID
-                    }
-                    insert(card)
-                }
-            }
-            
-            // Delete local cards that were deleted on the server
-            for object in localCards {
-                let status = object.value(forKey: "syncStatus") as? String
-                let serverID = object.value(forKey: "serverID") as? String
-                
-                if status == SyncStatus.synced.rawValue, let sid = serverID, !remoteServerIDs.contains(sid) {
-                    context.delete(object)
-                }
-            }
-            
-            save()
-            reload()
+            reconcileCards(remote)
         } catch {
             // Offline / unreachable → keep the cached cards.
         }
@@ -526,6 +481,57 @@ final class AppStore: ObservableObject {
             }
         }
         save()
+    }
+
+    /// Reconciles local CoreData cards against a remote card list.
+    func reconcileCards(_ remote: [BusinessDTO]) {
+        let localCards = fetchCards()
+        var remoteServerIDs = Set<String>()
+        
+        for dto in remote {
+            guard let remoteID = dto.serverID else { continue }
+            remoteServerIDs.insert(remoteID)
+            
+            if let existingObject = localCards.first(where: { ($0.value(forKey: "serverID") as? String) == remoteID }) {
+                // Update text fields of the existing local card, leaving imageData untouched!
+                existingObject.setValue(dto.title.isEmpty ? "Untitled" : dto.title, forKey: "title")
+                existingObject.setValue(dto.description, forKey: "cardDescription")
+                existingObject.setValue(dto.website, forKey: "content")
+                existingObject.setValue(encodeTags(dto.tags), forKey: "tagsJSON")
+                existingObject.setValue(dto.price, forKey: "price")
+                existingObject.setValue(encodeTags(dto.folderServerIDs), forKey: "folderIDsJSON")
+                existingObject.setValue(dto.imageURL, forKey: "imageURL")
+                
+                if let folderServerID = dto.folderServerID,
+                   let folder = cdCollection(serverID: folderServerID) {
+                    existingObject.setValue(folder.value(forKey: "id") as? UUID, forKey: "collectionID")
+                } else {
+                    existingObject.setValue(nil, forKey: "collectionID")
+                }
+                existingObject.setValue(SyncStatus.synced.rawValue, forKey: "syncStatus")
+            } else {
+                // Create new local card
+                var card = dto.toCard()
+                if let folderServerID = dto.folderServerID,
+                   let folder = cdCollection(serverID: folderServerID) {
+                    card.collectionID = folder.value(forKey: "id") as? UUID
+                }
+                insert(card)
+            }
+        }
+        
+        // Delete local cards that were deleted on the server
+        for object in localCards {
+            let status = object.value(forKey: "syncStatus") as? String
+            let serverID = object.value(forKey: "serverID") as? String
+            
+            if status == SyncStatus.synced.rawValue, let sid = serverID, !remoteServerIDs.contains(sid) {
+                context.delete(object)
+            }
+        }
+        
+        save()
+        reload()
     }
 
     // MARK: - CoreData helpers
