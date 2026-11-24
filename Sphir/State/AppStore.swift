@@ -44,6 +44,8 @@ final class AppStore: ObservableObject {
     /// Cards whose upload is owned by a running pushNewCard or syncCards, so no
     /// second path POSTs the same card. Entries are removed when that path ends.
     private var inFlightCardUploads: Set<UUID> = []
+    /// Bumped by resetLocalData(); a sync that started before a reset drops its API response.
+    private var resetGeneration = 0
 
     init(
         context: NSManagedObjectContext = PersistenceController.shared.container.viewContext,
@@ -265,6 +267,7 @@ final class AppStore: ObservableObject {
     /// clears in-flight sync sets, and reloads published projections so in-memory
     /// state is empty.
     func resetLocalData() {
+        resetGeneration += 1
         pendingFolderCreates.values.forEach { $0.cancel() }
         pendingFolderCreates.removeAll()
         inFlightCardUploads.removeAll()
@@ -307,6 +310,7 @@ final class AppStore: ObservableObject {
     /// or seed data — MySQL is the single source of truth.
     func syncCollections() async {
         guard hasCredentials() else { return }
+        let generation = resetGeneration
         
         // 1. Upload local collections that haven't been synced yet
         // Objects are re-fetched by id after every await: one deleted meanwhile is skipped.
@@ -331,6 +335,7 @@ final class AppStore: ObservableObject {
         // 2. Fetch and reconcile
         do {
             let remote = try await fetchFolders()
+            guard generation == resetGeneration else { return }
             
             let existingCollections = fetchCollections()
             var existingByServerID: [String: NSManagedObject] = [:]
@@ -408,6 +413,7 @@ final class AppStore: ObservableObject {
     /// by serverID resolve against the freshly inserted collections.
     func syncCards() async {
         guard hasCredentials() else { return }
+        let generation = resetGeneration
         
         // 1. Upload local cards that are offline or haven't been synced yet
         // Objects are re-fetched by id after every await: one deleted meanwhile is skipped.
@@ -442,6 +448,7 @@ final class AppStore: ObservableObject {
         // 2. Fetch and reconcile
         do {
             let remote = try await fetchRemoteCards()
+            guard generation == resetGeneration else { return }
             reconcileCards(remote)
         } catch {
             // Offline / unreachable → keep the cached cards.
