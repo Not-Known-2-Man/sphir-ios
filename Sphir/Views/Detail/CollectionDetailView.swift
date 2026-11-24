@@ -111,7 +111,7 @@ struct CollectionDetailView: View {
             HStack(spacing: 5) {
                 Image(systemName: collection.privacy.iconName)
                     .font(.system(size: 11))
-                Text("\(collection.privacy.label) · \(cards.count) items")
+                Text("\(collection.privacy.label) · \(Collection.itemCountLabel(cards.count))")
                     .font(SphirFont.body(12, weight: .medium))
             }
             .foregroundColor(SphirColor.mutedText)
@@ -120,7 +120,7 @@ struct CollectionDetailView: View {
             .background(Capsule().fill(SphirColor.cardBackgroundAlt))
             .overlay(Capsule().stroke(SphirColor.border, lineWidth: 1))
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(collection.privacy.label), \(cards.count) items")
+            .accessibilityLabel("\(collection.privacy.label), \(Collection.itemCountLabel(cards.count))")
         }
         .padding(.bottom, 4)
     }

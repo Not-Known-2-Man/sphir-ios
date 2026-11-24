@@ -22,11 +22,32 @@ final class AppStore: ObservableObject {
     /// Timestamp of the last successful API sync (drives the 5-min refresh).
     private var lastSyncedAt: Date?
 
+    /// Network seams (default to the real API services) so tests can hold a
+    /// request in flight without touching the network.
+    typealias FolderCreator = (_ name: String, _ description: String, _ privacy: String) async throws -> Collection
+    typealias CardCreator = (_ card: Card, _ folderServerID: String?) async throws -> Card
+    private let createFolder: FolderCreator
+    private let createCard: CardCreator
+    private let hasCredentials: () -> Bool
+    /// Collection creates still in flight (local id -> resulting folder id), so a
+    /// card added meanwhile can wait for its folder. Entries are removed when done.
+    private var pendingFolderCreates: [UUID: Task<String?, Never>] = [:]
+
     init(
         context: NSManagedObjectContext = PersistenceController.shared.container.viewContext,
-        seedIfEmpty: Bool = true
+        seedIfEmpty: Bool = true,
+        createFolder: @escaping FolderCreator = { name, description, privacy in
+            try await CollectionAPIService.createCollection(name: name, description: description, privacy: privacy)
+        },
+        createCard: @escaping CardCreator = { card, folderServerID in
+            try await CardAPIService.createCard(card, folderServerID: folderServerID)
+        },
+        hasCredentials: @escaping () -> Bool = { KeychainService.hasCredentials }
     ) {
         self.context = context
+        self.createFolder = createFolder
+        self.createCard = createCard
+        self.hasCredentials = hasCredentials
         if seedIfEmpty { seedIfNeeded() }
         importPendingSharedCards()
         reload()
@@ -206,6 +227,7 @@ final class AppStore: ObservableObject {
     func deleteCollection(id: UUID) {
         let serverID = collections.first(where: { $0.id == id })?.serverID
         if let object = cdCollection(id: id) {
+            detachCards(fromCollection: id, serverID: object.value(forKey: "serverID") as? String)
             context.delete(object)
             save()
             reload()
@@ -213,6 +235,22 @@ final class AppStore: ObservableObject {
         }
         guard KeychainService.hasCredentials, let serverID else { return }
         Task { try? await CollectionAPIService.deleteCollection(serverID: serverID) }
+    }
+
+    /// Drop a collection that is about to be deleted from its cards, so none
+    /// points at it: each card falls back to its next collection, or to
+    /// Uncategorized when it has none left.
+    private func detachCards(fromCollection id: UUID, serverID: String?) {
+        let request = NSFetchRequest<NSManagedObject>(entityName: "CDCard")
+        for card in (try? context.fetch(request)) ?? [] {
+            let memberships = decodeTags(card.value(forKey: "folderIDsJSON") as? String)
+            let remaining = memberships.filter { $0 != serverID }
+            guard (card.value(forKey: "collectionID") as? UUID) == id || remaining != memberships else { continue }
+            card.setValue(encodeTags(remaining), forKey: "folderIDsJSON")
+            if (card.value(forKey: "collectionID") as? UUID) == id {
+                card.setValue(primaryCollectionID(for: remaining), forKey: "collectionID")
+            }
+        }
     }
 
     // MARK: - Collections API sync
@@ -286,22 +324,25 @@ final class AppStore: ObservableObject {
     }
 
     private func pushNewCollection(_ collection: Collection) {
-        guard KeychainService.hasCredentials else { return }
-        Task {
+        guard hasCredentials() else { return }
+        pendingFolderCreates[collection.id] = Task { () -> String? in
+            defer { pendingFolderCreates[collection.id] = nil }
             do {
-                let remote = try await CollectionAPIService.createCollection(
-                    name: collection.name,
-                    description: collection.description,
-                    privacy: collection.privacy.rawValue
+                let remote = try await createFolder(
+                    collection.name,
+                    collection.description,
+                    collection.privacy.rawValue
                 )
                 if let serverID = remote.serverID, let object = cdCollection(id: collection.id) {
                     object.setValue(serverID, forKey: "serverID")
                     save()
                     reload()
+                    return serverID
                 }
             } catch {
                 // Stays local; a later sync/retry will reconcile it.
             }
+            return nil
         }
     }
 
@@ -338,7 +379,7 @@ final class AppStore: ObservableObject {
         
         // 2. Fetch and reconcile
         do {
-            let remote = try await CardAPIService.fetchCards()
+            let remote = try await CardAPIService.fetchAllCards()
             reconcileCards(remote)
         } catch {
             // Offline / unreachable → keep the cached cards.
@@ -349,13 +390,25 @@ final class AppStore: ObservableObject {
     /// Resolves the collection's MySQL serverID on the main actor before entering
     /// the async Task so the POST body carries the correct folder_id.
     private func pushNewCard(_ card: Card) {
-        guard KeychainService.hasCredentials else { return }
+        guard hasCredentials() else { return }
         setSyncStatus(.syncing, for: card.id)
-        let folderServerID = card.collectionID
-            .flatMap { cdCollection(id: $0)?.value(forKey: "serverID") as? String }
+        let collection = card.collectionID.flatMap { cdCollection(id: $0) }
+        let knownFolderID = collection?.value(forKey: "serverID") as? String
+        // A known collection without a folder id yet: wait for its in-flight
+        // create, or (no create / it failed) stay offline so syncCards uploads
+        // the card later with its folder instead of dropping it in Uncategorized.
+        let pendingFolder = (knownFolderID == nil && collection != nil)
+            ? card.collectionID.flatMap { pendingFolderCreates[$0] } : nil
+        let needsFolder = knownFolderID == nil && collection != nil
         Task {
+            var folderServerID = knownFolderID
+            if let pendingFolder { folderServerID = await pendingFolder.value }
+            if needsFolder && folderServerID == nil {
+                setSyncStatus(.offline, for: card.id)
+                return
+            }
             do {
-                let remote = try await CardAPIService.createCard(card, folderServerID: folderServerID)
+                let remote = try await createCard(card, folderServerID)
                 if let object = cdCard(id: card.id) {
                     object.setValue(remote.serverID, forKey: "serverID")
                     object.setValue(SyncStatus.synced.rawValue, forKey: "syncStatus")
@@ -384,13 +437,29 @@ final class AppStore: ObservableObject {
         do {
             let dto = try await CardAPIService.setFolders(serverID: serverID, folderIDs: folderServerIDs)
             let confirmed = dto.folderServerIDs.isEmpty ? folderServerIDs : dto.folderServerIDs
-            cdCard(id: cardID)?.setValue(encodeTags(confirmed), forKey: "folderIDsJSON")
-            save()
-            reload()
+            applyCardCollections(cardID: cardID, folderServerIDs: confirmed)
             return true
         } catch {
             return false
         }
+    }
+
+    /// Store the card's confirmed collections (primary first) locally, and
+    /// point its local primary at the first one known on this device.
+    func applyCardCollections(cardID: UUID, folderServerIDs: [String]) {
+        guard let object = cdCard(id: cardID) else { return }
+        object.setValue(encodeTags(folderServerIDs), forKey: "folderIDsJSON")
+        object.setValue(primaryCollectionID(for: folderServerIDs), forKey: "collectionID")
+        save()
+        reload()
+    }
+
+    /// Local id of the first collection in `folderServerIDs` that exists on
+    /// this device (the API lists the primary first); nil when none does.
+    private func primaryCollectionID(for folderServerIDs: [String]) -> UUID? {
+        folderServerIDs.lazy
+            .compactMap { self.cdCollection(serverID: $0)?.value(forKey: "id") as? UUID }
+            .first
     }
 
     // MARK: - Combined sync

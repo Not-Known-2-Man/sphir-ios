@@ -24,7 +24,7 @@ struct CollectionCardView: View {
                     .lineLimit(1)
 
                 // Item count
-                Text("\(collection.cardCount) items")
+                Text(Collection.itemCountLabel(collection.cardCount))
                     .font(SphirFont.body(12))
                     .foregroundColor(SphirColor.mutedText)
             }
@@ -45,7 +45,7 @@ struct CollectionCardView: View {
         )
         .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(collection.name), \(collection.cardCount) items, \(collection.privacy.label)")
+        .accessibilityLabel("\(collection.name), \(Collection.itemCountLabel(collection.cardCount)), \(collection.privacy.label)")
     }
 
     private var coverView: some View {

@@ -166,6 +166,27 @@ enum CardAPIService {
         return response.items
     }
 
+    /// Every card of the account: reads pages (API max 100 per page) until one
+    /// comes back short. Any page error fails the whole fetch, so a sync never
+    /// reconciles against a partial list. A card created between two pages
+    /// shifts the rest by one; repeated ids are dropped.
+    static func fetchAllCards(
+        perPage: Int = 100,
+        maxPages: Int = 100,
+        fetchPage: (_ page: Int, _ perPage: Int) async throws -> [BusinessDTO] = { try await fetchCards(page: $0, perPage: $1) }
+    ) async throws -> [BusinessDTO] {
+        var all: [BusinessDTO] = []
+        var seen = Set<String>()
+        for page in 1...maxPages {
+            let batch = try await fetchPage(page, perPage)
+            for dto in batch where dto.serverID.map({ seen.insert($0).inserted }) ?? true {
+                all.append(dto)
+            }
+            if batch.count < perPage { break }
+        }
+        return all
+    }
+
     /// POST /api/v1/businesses — returns the created business (with id).
     /// Pass the MySQL folder serverID so folder_id is stored correctly.
     static func createCard(_ card: Card, folderServerID: String? = nil) async throws -> Card {
