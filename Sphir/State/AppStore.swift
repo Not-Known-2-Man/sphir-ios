@@ -364,6 +364,11 @@ final class AppStore: ObservableObject {
                     reload()
                     return serverID
                 }
+                if let serverID = remote.serverID, cdCollection(id: id) == nil {
+                    // The collection was deleted while the create was in flight:
+                    // remove the folder just created so it is not orphaned.
+                    if hasCredentials() { try? await deleteFolderAPI(serverID) }
+                }
             } catch {
                 // Stays local; a later sync/retry will reconcile it.
             }

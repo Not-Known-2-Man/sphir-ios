@@ -276,4 +276,31 @@ struct ConcurrentSyncTests {
         await settle()
         #expect(api.deletedCards == ["C1"])
     }
+
+    // MARK: - Orphan folder: collection deleted while its create was in flight
+
+    @Test func folderCreatedForADeletedCollectionIsDeletedOnTheServer() async {
+        api.holdNextFolder = true
+        let collection = store.addCollection(name: "Trip", privacy: .private)
+        #expect(await waitUntil { api.folderIsHeld })
+
+        store.deleteCollection(id: collection.id)    // no serverID yet: nothing to delete remotely
+        #expect(api.deletedFolders.isEmpty)
+        api.releaseFolder()
+
+        #expect(await waitUntil { api.deletedFolders == ["F1"] })
+        await settle()
+        #expect(api.deletedFolders == ["F1"])        // exactly once
+    }
+
+    @Test func folderOfAKeptCollectionIsNotDeleted() async {
+        api.holdNextFolder = true
+        let collection = store.addCollection(name: "Trip", privacy: .private)
+        #expect(await waitUntil { api.folderIsHeld })
+        api.releaseFolder()
+
+        #expect(await waitUntil { store.collections.first { $0.id == collection.id }?.serverID == "F1" })
+        await settle()
+        #expect(api.deletedFolders.isEmpty)
+    }
 }

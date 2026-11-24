@@ -89,29 +89,29 @@ struct ClipThreeTapTests {
     /// Legacy (default access group) credentials are returned, moved to the shared
     /// group when it is usable, and removed on clear(). Uses an isolated service name.
     @Test func keychainMigratesLegacyItemAndClears() {
-        let saved = (KeychainService.service, KeychainService.sharedAccessGroup)
-        defer { (KeychainService.service, KeychainService.sharedAccessGroup) = saved }
-        KeychainService.service = "com.Sphir.auth.test.\(UUID().uuidString)"
+        // Own service/group passed explicitly: the global statics are never mutated,
+        // so suites running in parallel (hasCredentials) cannot observe this test.
+        let service = "com.Sphir.auth.test.\(UUID().uuidString)"
         let group = "group.com.sphir.shared"
         func legacyQuery() -> [String: Any] {
             [kSecClass as String: kSecClassGenericPassword,
-             kSecAttrService as String: KeychainService.service,
+             kSecAttrService as String: service,
              kSecAttrAccount as String: "access_token"]
         }
         var add = legacyQuery(); add[kSecValueData as String] = Data("tok".utf8)
         #expect(SecItemAdd(add as CFDictionary, nil) == errSecSuccess)
 
-        #expect(KeychainService.load(.accessToken) == "tok")
+        #expect(KeychainService.load(.accessToken, service: service, group: group) == "tok")
         // Second read still works (from shared, or legacy if the group is unusable here).
-        #expect(KeychainService.load(.accessToken) == "tok")
+        #expect(KeychainService.load(.accessToken, service: service, group: group) == "tok")
 
-        var shared = legacyQuery(); shared[kSecAttrService as String] = KeychainService.service + ".shared"; shared[kSecAttrAccessGroup as String] = group
+        var shared = legacyQuery(); shared[kSecAttrService as String] = service + ".shared"; shared[kSecAttrAccessGroup as String] = group
         let sharedHit = SecItemCopyMatching(shared as CFDictionary, nil) == errSecSuccess
         let legacyHit = SecItemCopyMatching(legacyQuery() as CFDictionary, nil) == errSecSuccess
         print("[TEST] keychain shared group usable: \(sharedHit); legacy still present: \(legacyHit)")
         if sharedHit { #expect(!legacyHit) }
 
-        KeychainService.delete(.accessToken)
-        #expect(KeychainService.load(.accessToken) == nil)
+        KeychainService.delete(.accessToken, service: service, group: group)
+        #expect(KeychainService.load(.accessToken, service: service, group: group) == nil)
     }
 }
