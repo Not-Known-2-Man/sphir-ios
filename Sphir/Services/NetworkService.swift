@@ -110,10 +110,8 @@ final class NetworkService {
         }
 
         #if DEBUG
-        print("[NET] \(method.rawValue) \(url)")
-        if let bodyData = request.httpBody, let bodyStr = String(data: bodyData, encoding: .utf8) {
-            print("[NET] Body: \(bodyStr)")
-        }
+        // Never print request or response bodies: they carry passwords and tokens.
+        print("[NET] \(method.rawValue) \(url.path)")
         #endif
 
         let data: Data
@@ -130,9 +128,6 @@ final class NetworkService {
 
         #if DEBUG
         print("[NET] Status: \(http.statusCode)")
-        if let responseStr = String(data: data, encoding: .utf8) {
-            print("[NET] Response: \(responseStr)")
-        }
         #endif
 
         if http.statusCode == 401 {
@@ -163,4 +158,22 @@ extension NetworkService {
     func preview(url: String) async throws -> LinkPreview {
         try await request("/api/v1/preview", query: ["url": url])
     }
+
+    /// POST /api/v1/preview {url, html} with the page Safari already loaded.
+    /// Without HTML, or when the POST is rejected (older API without POST,
+    /// body too large, …), uses GET. 401 and network errors are not retried.
+    func preview(url: String, html: String?) async throws -> LinkPreview {
+        guard let html, !html.isEmpty else { return try await preview(url: url) }
+        do {
+            return try await request("/api/v1/preview", method: .post,
+                                     body: PreviewHTMLRequest(url: url, html: html))
+        } catch NetworkError.server {
+            return try await preview(url: url)
+        }
+    }
+}
+
+private struct PreviewHTMLRequest: Encodable {
+    let url: String
+    let html: String
 }

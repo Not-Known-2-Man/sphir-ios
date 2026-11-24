@@ -48,10 +48,16 @@ struct BusinessDTO: Decodable {
     let tags: [String]
     let folderServerID: String?
     let imageURL: String?
+    /// Display price (e.g. "$29.99"); "" when the API has none.
+    let price: String
+    /// Every collection of the card, primary first (`folder_ids`, S8/T2);
+    /// falls back to the single `folder_id` for older APIs.
+    let folderServerIDs: [String]
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, description, website, email, tags
+        case id, title, description, website, email, tags, price
         case folderID = "folder_id"
+        case folderIDs = "folder_ids"
         case ogImage = "og_image"
     }
 
@@ -65,6 +71,12 @@ struct BusinessDTO: Decodable {
         folderServerID = (try? c.decode(FlexibleID.self, forKey: .folderID))?.value
         let og = (try? c.decode(String.self, forKey: .ogImage)) ?? ""
         imageURL = og.isEmpty ? nil : og
+        price = (try? c.decode(String.self, forKey: .price)) ?? ""
+        if let ids = try? c.decode([FlexibleID].self, forKey: .folderIDs) {
+            folderServerIDs = ids.map(\.value).filter { !$0.isEmpty }
+        } else {
+            folderServerIDs = folderServerID.map { [$0] } ?? []
+        }
 
         // Tags may be an array of strings or a comma-separated string.
         if let array = try? c.decode([String].self, forKey: .tags) {
@@ -103,14 +115,16 @@ struct BusinessRequest: Encodable {
     let tags: [String]
     let folderID: String?
     let ogImage: String?
+    let price: String?
 
     enum CodingKeys: String, CodingKey {
-        case title, description, website, email, tags
+        case title, description, website, email, tags, price
         case folderID = "folder_id"
         case ogImage = "og_image"
     }
 
-    init(card: Card, folderServerID: String? = nil) {
+    init(card: Card, folderServerID: String? = nil, price: String? = nil) {
+        self.price = price
         title = card.title
         description = card.description
         website = card.content
@@ -123,6 +137,18 @@ struct BusinessRequest: Encodable {
         } else {
             ogImage = nil
         }
+    }
+}
+
+/// PUT /api/v1/businesses/:id/folders body. Server ids are integers.
+struct BusinessFoldersRequest: Encodable {
+    let folderIDs: [String]
+
+    enum CodingKeys: String, CodingKey { case folderIDs = "folder_ids" }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(folderIDs.map { Int($0).map(AnyEncodable.init) ?? AnyEncodable($0) }, forKey: .folderIDs)
     }
 }
 
@@ -145,6 +171,22 @@ enum CardAPIService {
             body: BusinessRequest(card: card, folderServerID: folderServerID)
         )
         return dto.toCard()
+    }
+
+    /// POST /api/v1/businesses from a clip draft — returns the created business
+    /// (id, folder_ids). Sends type tag, og_image and price.
+    static func createCard(_ request: BusinessRequest) async throws -> BusinessDTO {
+        try await NetworkService.shared.request("/api/v1/businesses", method: .post, body: request)
+    }
+
+    /// PUT /api/v1/businesses/{id}/folders — replaces the card's collections
+    /// (first id = primary). Returns the card with its `folder_ids`.
+    static func setFolders(serverID: String, folderIDs: [String]) async throws -> BusinessDTO {
+        try await NetworkService.shared.request(
+            "/api/v1/businesses/\(serverID)/folders",
+            method: .put,
+            body: BusinessFoldersRequest(folderIDs: folderIDs)
+        )
     }
 
     /// PUT /api/v1/businesses/{id}

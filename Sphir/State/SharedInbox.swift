@@ -2,13 +2,14 @@
 //  SharedInbox.swift
 //  Sphir + SphirShare
 //
-//  App Group–backed bridge between the main app and the share extensions.
-//  The main app publishes its collections here so extensions can populate
-//  their pickers; extensions enqueue captured cards here so the main app
-//  can import them on next launch.
+//  App Group–backed bridge between the main app and the share extension.
+//  The main app publishes its collections here so the extension can populate
+//  its picker; the extension enqueues captured cards here so the main app can
+//  import them on next launch.
 //
-//  NOTE: This file must also be added to the SphirShare extension target
-//  (Target Membership) so both processes share the same storage code.
+//  This file exists twice, byte for byte: Sphir/State/SharedInbox.swift (app
+//  target) and SphirShare/SharedInbox.swift (extension target). The targets
+//  are separate binaries, so each compiles its own copy. Keep them identical.
 //
 
 import Foundation
@@ -67,6 +68,7 @@ enum SharedInbox {
 
     private static let collectionsKey = "shared.collections"
     private static let pendingCardsKey = "shared.pendingCards"
+    private static let lastCollectionKey = "shared.lastClipCollection"
 
     private static var defaults: UserDefaults? {
         UserDefaults(suiteName: appGroupID)
@@ -84,6 +86,15 @@ enum SharedInbox {
               let decoded = try? JSONDecoder().decode([SharedCollectionDTO].self, from: data)
         else { return [] }
         return decoded
+    }
+
+    // MARK: - Last collection used by the extension
+
+    /// Server folder id (or collection UUID string when offline) of the last
+    /// collection a clip was saved to; preselected on the next clip.
+    static var lastClipCollection: String? {
+        get { defaults?.string(forKey: lastCollectionKey) }
+        set { defaults?.set(newValue, forKey: lastCollectionKey) }
     }
 
     // MARK: - Pending cards (enqueued by extensions)
@@ -108,7 +119,8 @@ enum SharedInbox {
                 imageData: old.imageData,
                 sourceAppRaw: old.sourceAppRaw,
                 collectionID: newCollectionID,
-                createdAt: old.createdAt
+                createdAt: old.createdAt,
+                tags: old.tags
             )
             pending[idx] = updated
             guard let data = try? JSONEncoder().encode(pending) else { return }

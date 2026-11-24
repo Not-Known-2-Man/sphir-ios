@@ -1,10 +1,15 @@
 //
 //  SharedInbox.swift
-//  SphirShare
+//  Sphir + SphirShare
 //
-//  Mirror of Sphir/State/SharedInbox.swift, compiled into the extension
-//  target. The two targets are separate binaries, so each needs its own
-//  copy of the App Group storage code. Keep these two files in sync.
+//  App Group–backed bridge between the main app and the share extension.
+//  The main app publishes its collections here so the extension can populate
+//  its picker; the extension enqueues captured cards here so the main app can
+//  import them on next launch.
+//
+//  This file exists twice, byte for byte: Sphir/State/SharedInbox.swift (app
+//  target) and SphirShare/SharedInbox.swift (extension target). The targets
+//  are separate binaries, so each compiles its own copy. Keep them identical.
 //
 
 import Foundation
@@ -63,6 +68,7 @@ enum SharedInbox {
 
     private static let collectionsKey = "shared.collections"
     private static let pendingCardsKey = "shared.pendingCards"
+    private static let lastCollectionKey = "shared.lastClipCollection"
 
     private static var defaults: UserDefaults? {
         UserDefaults(suiteName: appGroupID)
@@ -80,6 +86,15 @@ enum SharedInbox {
               let decoded = try? JSONDecoder().decode([SharedCollectionDTO].self, from: data)
         else { return [] }
         return decoded
+    }
+
+    // MARK: - Last collection used by the extension
+
+    /// Server folder id (or collection UUID string when offline) of the last
+    /// collection a clip was saved to; preselected on the next clip.
+    static var lastClipCollection: String? {
+        get { defaults?.string(forKey: lastCollectionKey) }
+        set { defaults?.set(newValue, forKey: lastCollectionKey) }
     }
 
     // MARK: - Pending cards (enqueued by extensions)

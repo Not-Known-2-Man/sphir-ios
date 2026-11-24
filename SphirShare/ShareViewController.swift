@@ -50,9 +50,10 @@ final class ShareViewController: UIViewController {
         let stored = SharedInbox.loadCollections()
         let collections = stored.isEmpty ? SharedInbox.fallbackCollections : stored
 
-        let root = ShareView(
+        let root = ShareRoot(
             content: content,
             collections: collections,
+            storedCollections: stored,
             onSave: { [weak self] payload in
                 self?.save(payload) ?? UUID()
             },
@@ -64,6 +65,9 @@ final class ShareViewController: UIViewController {
             },
             onView: { [weak self] cardID in
                 self?.openCard(cardID)
+            },
+            onOpenApp: { [weak self] in
+                self?.openApp()
             },
             onDismiss: { [weak self] in
                 self?.finish()
@@ -88,6 +92,7 @@ final class ShareViewController: UIViewController {
         var urlString: String?
         var text: String?
         var sharedImageData: Data?
+        var snapshot: PageSnapshot?
 
         guard let items = extensionContext?.inputItems as? [NSExtensionItem] else {
             return SharedContent()
@@ -101,6 +106,10 @@ final class ShareViewController: UIViewController {
             }
 
             for provider in item.attachments ?? [] {
+                if snapshot == nil,
+                   provider.hasItemConformingToTypeIdentifier(UTType.propertyList.identifier) {
+                    snapshot = await loadPageSnapshot(provider)
+                }
                 if urlString == nil,
                    provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
                     urlString = await loadWebURL(provider)
@@ -114,7 +123,19 @@ final class ShareViewController: UIViewController {
             }
         }
 
-        return SharedContent(urlString: urlString, text: text, sharedImageData: sharedImageData)
+        if urlString == nil { urlString = snapshot?.url }
+        let html = snapshot?.html
+        return SharedContent(urlString: urlString, text: text, sharedImageData: sharedImageData,
+                             pageHTML: (html?.isEmpty ?? true) ? nil : html)
+    }
+
+    /// The result of ClipPreprocess.js (Safari only).
+    private func loadPageSnapshot(_ provider: NSItemProvider) async -> PageSnapshot? {
+        await withCheckedContinuation { continuation in
+            provider.loadItem(forTypeIdentifier: UTType.propertyList.identifier, options: nil) { data, _ in
+                continuation.resume(returning: PageSnapshot.parse(data))
+            }
+        }
     }
 
     private func loadWebURL(_ provider: NSItemProvider) async -> String? {
@@ -203,6 +224,12 @@ final class ShareViewController: UIViewController {
         } else {
             finish()
         }
+    }
+
+    /// Open the app (no deep link target) when the saved card has no local id yet.
+    private func openApp() {
+        guard let url = URL(string: "sphir://home") else { return finish() }
+        extensionContext?.open(url) { [weak self] _ in self?.finish() }
     }
 
     private func finish() {
