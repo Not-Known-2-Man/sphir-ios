@@ -105,13 +105,15 @@ struct ClipDraft: Equatable {
     var published: String
 
     init(preview: LinkPreview, fallbackURL: String) {
+        // The stored card (already on Sphir) only fills what the page lacks.
+        let stored = preview.alreadyOnSphir
         url = preview.url.isEmpty ? fallbackURL : preview.url
-        title = preview.title
+        title = preview.title.isEmpty ? (stored?.title ?? "") : preview.title
         description = preview.description
-        imageURL = Self.httpURL(preview.image)
+        imageURL = Self.httpURL(preview.image) ?? Self.httpURL(stored?.image ?? "")
         type = CardType(previewType: preview.type)
         tags = Self.cleanTags(preview.tags)
-        price = preview.price
+        price = preview.price.isEmpty ? (stored?.price ?? "") : preview.price
         site = preview.site.isEmpty ? (Self.host(of: url) ?? "") : preview.site
         published = preview.published
     }
@@ -290,7 +292,10 @@ enum FolderSelection {
         return next
     }
 
-    static func preselect(lastUsed: String?, available: [String]) -> String? {
+    /// The AI's suggestion wins when it is one of the user's collections, then
+    /// the last used one, then the first.
+    static func preselect(suggested: String? = nil, lastUsed: String?, available: [String]) -> String? {
+        if let suggested, available.contains(suggested) { return suggested }
         if let lastUsed, available.contains(lastUsed) { return lastUsed }
         return available.first
     }

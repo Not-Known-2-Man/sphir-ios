@@ -34,6 +34,12 @@ final class ClipFlowModel: ObservableObject {
     @Published var appliedExtraIDs: Set<String> = []
     @Published var folderError: String?
     @Published var updatingFolders = false
+    /// "Already on Sphir · N people saved it" (S4); nil when nobody saved it.
+    @Published var alreadyOnSphir: AlreadyOnSphir?
+    /// The AI filled the card; the user can still edit it (S6).
+    @Published var aiFilled = false
+    /// Price field shown: the card came with a price or the AI filled it.
+    @Published var showsPrice = false
 
     private let content: SharedContent
     private let sharedCollections: [SharedCollectionDTO]
@@ -79,9 +85,14 @@ final class ClipFlowModel: ObservableObject {
         let (preview, folders) = await (previewResult, folderResult)
 
         collections = folders
-        selectedID = FolderSelection.preselect(lastUsed: SharedInbox.lastClipCollection, available: folders.map(\.id))
+        selectedID = FolderSelection.preselect(suggested: preview?.suggestedCollectionID,
+                                               lastUsed: SharedInbox.lastClipCollection,
+                                               available: folders.map(\.id))
         if let preview {
             draft = ClipDraft(preview: preview, fallbackURL: url)
+            alreadyOnSphir = preview.alreadyOnSphir
+            aiFilled = preview.ai
+            showsPrice = !draft.price.isEmpty || preview.ai
         } else {
             let meta = await MetadataService.fetch(urlString: url)
             draft = ClipDraft(fallbackURL: url, title: meta?.title ?? "", description: meta?.description ?? "",
@@ -216,6 +227,14 @@ private struct PreviewCardView: View {
     var body: some View {
         VStack(spacing: 14) {
             Spacer(minLength: 0)
+            if let saved = model.alreadyOnSphir {
+                Label(saved.notice, systemImage: "person.2.fill")
+                    .accessibilityIdentifier("clipAlreadyOnSphir")
+                    .font(ShareFont.body(13, weight: .semibold))
+                    .foregroundColor(ShareColor.textPrimary)
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .background(Capsule().fill(ShareColor.background))
+            }
             if let banner = model.banner {
                 Text(banner)
                     .font(ShareFont.body(13, weight: .semibold))
@@ -275,10 +294,19 @@ private struct PreviewCardView: View {
 
     private var details: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(model.draft.typeLabel)
-                .accessibilityIdentifier("clipTypeLabel")
-                .font(ShareFont.body(11, weight: .bold)).tracking(1.2)
-                .foregroundColor(ShareColor.taupe)
+            HStack {
+                Text(model.draft.typeLabel)
+                    .accessibilityIdentifier("clipTypeLabel")
+                    .font(ShareFont.body(11, weight: .bold)).tracking(1.2)
+                    .foregroundColor(ShareColor.taupe)
+                if model.aiFilled {
+                    Spacer()
+                    Label("Filled by AI · edit anything", systemImage: "sparkles")
+                        .accessibilityIdentifier("clipAiFilled")
+                        .font(ShareFont.body(11, weight: .medium))
+                        .foregroundColor(ShareColor.mutedText)
+                }
+            }
 
             TextField("Title", text: $model.draft.title, axis: .vertical)
                 .accessibilityIdentifier("clipTitleField")
@@ -303,8 +331,8 @@ private struct PreviewCardView: View {
                 }
             }
 
-            if !model.draft.price.isEmpty {
-                Text(model.draft.price)
+            if model.showsPrice {
+                TextField("Price", text: $model.draft.price)
                     .accessibilityIdentifier("clipPrice")
                     .font(ShareFont.body(20, weight: .bold))
                     .foregroundColor(ShareColor.textPrimary)
