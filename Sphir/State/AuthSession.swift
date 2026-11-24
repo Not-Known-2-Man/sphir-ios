@@ -11,46 +11,90 @@
 import SwiftUI
 import Combine
 
+enum DeleteAccountResult: Equatable {
+    case success
+    case incorrectPassword
+    case failed
+}
+
 @MainActor
 final class AuthSession: ObservableObject {
     @Published private(set) var isLoggedIn: Bool
+    @Published private(set) var isGuest: Bool
     @Published private(set) var userName: String
     @Published private(set) var userEmail: String
     /// Whether the user has completed onboarding (persists across sign-out).
     @Published private(set) var hasSeenOnboarding: Bool
+
+    typealias DeleteAccountRequest = (_ password: String) async throws -> Void
+    typealias WipeLocalData = () -> Void
+    typealias KeychainClearer = () -> Void
 
     private let isMock: Bool
     private let nameKey = "auth.userName"
     private let emailKey = "auth.userEmail"
     private let onboardingKey = "onboarding.hasSeen"
 
-    init() {
+    private let deleteAccountRequest: DeleteAccountRequest
+    private let wipeLocalData: WipeLocalData
+    private let clearKeychain: KeychainClearer
+
+    init(
+        isLoggedIn: Bool? = nil,
+        userName: String? = nil,
+        userEmail: String? = nil,
+        isMock: Bool? = nil,
+        deleteAccountRequest: @escaping DeleteAccountRequest = { password in
+            try await AuthAPIService.deleteAccount(password: password)
+        },
+        wipeLocalData: @escaping WipeLocalData = {
+            PersistenceController.shared.wipeAllData()
+            SharedInbox.clearPendingCards()
+        },
+        clearKeychain: @escaping KeychainClearer = {
+            KeychainService.clear()
+        }
+    ) {
+        self.deleteAccountRequest = deleteAccountRequest
+        self.wipeLocalData = wipeLocalData
+        self.clearKeychain = clearKeychain
+        self.isGuest = false
+
         let args = ProcessInfo.processInfo.arguments
         let forceOnboarding = args.contains("SHOW_ONBOARDING")
         let defaults = UserDefaults.standard
 
-        if args.contains("LOGGED_OUT") {
-            isMock = true
-            isLoggedIn = false
-            userName = ""
-            userEmail = ""
-            hasSeenOnboarding = !forceOnboarding
-            return
-        }
-        if args.contains("UITEST") {
-            isMock = true
-            isLoggedIn = true
-            userName = "Alex"
-            userEmail = "alex@sphir.app"
-            hasSeenOnboarding = !forceOnboarding
+        if let explicitMock = isMock {
+            self.isMock = explicitMock
+            self.isLoggedIn = isLoggedIn ?? false
+            self.userName = userName ?? ""
+            self.userEmail = userEmail ?? ""
+            self.hasSeenOnboarding = !forceOnboarding
             return
         }
 
-        isMock = false
-        isLoggedIn = KeychainService.hasCredentials
-        userName = defaults.string(forKey: nameKey) ?? ""
-        userEmail = defaults.string(forKey: emailKey) ?? ""
-        hasSeenOnboarding = defaults.bool(forKey: onboardingKey)
+        if args.contains("LOGGED_OUT") {
+            self.isMock = true
+            self.isLoggedIn = false
+            self.userName = ""
+            self.userEmail = ""
+            self.hasSeenOnboarding = !forceOnboarding
+            return
+        }
+        if args.contains("UITEST") {
+            self.isMock = true
+            self.isLoggedIn = true
+            self.userName = "Alex"
+            self.userEmail = "alex@sphir.app"
+            self.hasSeenOnboarding = !forceOnboarding
+            return
+        }
+
+        self.isMock = false
+        self.isLoggedIn = isLoggedIn ?? KeychainService.hasCredentials
+        self.userName = userName ?? (defaults.string(forKey: nameKey) ?? "")
+        self.userEmail = userEmail ?? (defaults.string(forKey: emailKey) ?? "")
+        self.hasSeenOnboarding = defaults.bool(forKey: onboardingKey)
 
         // Sign out if the API rejects the token (401).
         NotificationCenter.default.addObserver(
@@ -77,6 +121,7 @@ final class AuthSession: ObservableObject {
         userName = name.isEmpty ? Self.name(fromEmail: email) : name
         userEmail = email
         isLoggedIn = true
+        isGuest = false
         cacheProfile()
     }
 
@@ -92,12 +137,14 @@ final class AuthSession: ObservableObject {
         guard !isMock else {
             userName = "Guest"
             isLoggedIn = true
+            isGuest = true
             return
         }
         try await AuthAPIService.continueAsGuest()
         userName = "Guest"
         userEmail = ""
         isLoggedIn = true
+        isGuest = true
         // Guest session is not persisted to Keychain — next launch shows AuthView again.
     }
 
@@ -106,6 +153,27 @@ final class AuthSession: ObservableObject {
             await AuthAPIService.signOut()
         }
         clearSession()
+    }
+
+    /// Delete account and all associated data permanently.
+    func deleteAccount(password: String) async -> DeleteAccountResult {
+        guard !isMock else {
+            clearSession()
+            wipeLocalData()
+            return .success
+        }
+        do {
+            try await deleteAccountRequest(password)
+            clearSession()
+            wipeLocalData()
+            return .success
+        } catch let error as AuthAPIError where error == .incorrectPassword {
+            return .incorrectPassword
+        } catch let NetworkError.server(status, _) where status == 422 {
+            return .incorrectPassword
+        } catch {
+            return .failed
+        }
     }
 
     /// Mark onboarding complete (after the user taps "Get Started").
@@ -129,9 +197,10 @@ final class AuthSession: ObservableObject {
 
     private func clearSession() {
         isLoggedIn = false
+        isGuest = false
         userName = ""
         userEmail = ""
-        KeychainService.clear()
+        clearKeychain()
         let defaults = UserDefaults.standard
         defaults.removeObject(forKey: nameKey)
         defaults.removeObject(forKey: emailKey)
@@ -150,12 +219,14 @@ final class AuthSession: ObservableObject {
         userEmail = email
         userName = (stored?.isEmpty == false) ? stored! : Self.name(fromEmail: email)
         isLoggedIn = true
+        isGuest = false
     }
 
     private func mockSignUp(name: String, email: String) {
         userName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         userEmail = email
         isLoggedIn = true
+        isGuest = false
     }
 
     // MARK: - Helpers

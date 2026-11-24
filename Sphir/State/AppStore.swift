@@ -261,6 +261,29 @@ final class AppStore: ObservableObject {
         Task { try? await deleteFolderAPI(serverID) }
     }
 
+    /// Wipes all collections and cards from this store's Core Data context,
+    /// clears in-flight sync sets, and reloads published projections so in-memory
+    /// state is empty.
+    func resetLocalData() {
+        pendingFolderCreates.values.forEach { $0.cancel() }
+        pendingFolderCreates.removeAll()
+        inFlightCardUploads.removeAll()
+        lastSyncedAt = nil
+
+        for entity in ["CDCard", "CDCollection"] {
+            let request = NSFetchRequest<NSManagedObject>(entityName: entity)
+            if let objects = try? context.fetch(request) {
+                for object in objects {
+                    context.delete(object)
+                }
+            }
+        }
+        try? context.save()
+        reload()
+        SharedInbox.clearPendingCards()
+        publishCollectionsToSharedInbox()
+    }
+
     /// Drop a collection that is about to be deleted from its cards, so none
     /// points at it: each card falls back to its next collection, or to
     /// Uncategorized when it has none left.

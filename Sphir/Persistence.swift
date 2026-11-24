@@ -50,6 +50,20 @@ final class PersistenceController {
         container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
     }
 
+    /// Delete all collections and cards from the store.
+    func wipeAllData() {
+        let context = container.viewContext
+        for entity in ["CDCard", "CDCollection"] {
+            let request = NSFetchRequest<NSManagedObject>(entityName: entity)
+            if let objects = try? context.fetch(request) {
+                for object in objects {
+                    context.delete(object)
+                }
+            }
+        }
+        try? context.save()
+    }
+
     // MARK: - Programmatic model
 
     static let model: NSManagedObjectModel = {

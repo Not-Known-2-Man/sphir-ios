@@ -57,6 +57,14 @@ private struct SignUpRequest: Encodable {
     }
 }
 
+enum AuthAPIError: Error, Equatable {
+    case incorrectPassword
+}
+
+private struct DeleteAccountRequest: Encodable {
+    let password: String
+}
+
 // MARK: - Service
 
 enum AuthAPIService {
@@ -114,5 +122,19 @@ enum AuthAPIService {
             method: .delete
         ) as EmptyResponse
         KeychainService.clear()
+    }
+
+    /// DELETE /api/v1/auth — deletes the account permanently.
+    static func deleteAccount(password: String) async throws {
+        do {
+            let _: EmptyResponse = try await NetworkService.shared.request(
+                "/api/v1/auth",
+                method: .delete,
+                body: DeleteAccountRequest(password: password),
+                authorized: true
+            )
+        } catch let NetworkError.server(status, _) where status == 422 {
+            throw AuthAPIError.incorrectPassword
+        }
     }
 }
