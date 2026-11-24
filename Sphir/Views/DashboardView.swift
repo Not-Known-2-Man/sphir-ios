@@ -410,7 +410,10 @@ struct DashboardView: View {
         LazyVGrid(columns: gridColumns, spacing: 16) {
             ForEach(filteredCollections) { collection in
                 NavigationLink(value: collection) {
-                    CollectionCardView(collection: collection)
+                    CollectionCardView(
+                        collection: collection,
+                        covers: CollectionCover.sources(for: appStore.cards(in: collection.id))
+                    )
                 }
                 .buttonStyle(.plain)
             }

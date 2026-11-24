@@ -3,49 +3,65 @@
 _Last updated: [DATE]_
 
 Sphir is designed to be private by default. This policy explains what the app
-does and does not do with your information.
+and the Sphir website do and do not do with your information.
 
 ## The short version
-Sphir does **not** collect, store, or share your personal data. There are no
-accounts, no sign-in, and no Sphir servers. Everything you save stays on your
-device.
+You need a Sphir account to sync your cards between the iPhone app and the
+website. We store your account details and the cards you save so you can see
+them everywhere you sign in. We do not sell or share your data, and there is
+no advertising or tracking.
 
 ## What we collect
-**Nothing.** We do not collect analytics, usage data, advertising identifiers,
-or any personal information. We do not track you across apps or websites.
+- **Account details:** your email address, your name, and your password. The
+  password is stored only as a one-way hash; we never store it in plain text.
+- **Your content:** the collections and cards you save (titles, descriptions,
+  links, tags, prices, and cover image links).
+- **Images you upload on the website:** when you add an image or screenshot to
+  a card on the Sphir website, that image is stored on Sphir's servers so the
+  card can show it.
+
+We do not collect analytics, usage data, or advertising identifiers, and we do
+not track you across apps or websites.
 
 ## Where your content is stored
-Everything you create in Sphir — collections, cards, saved links, imported
-photos and screenshots, and extracted text — is stored **locally on your
-device**. It is not uploaded to us or to any third party. If you delete the
-app, that data is removed with it.
+Your account and cards are stored on Sphir's servers (hosted on Render) so they
+sync between the app and the website. Photos and screenshots you add in the
+**iPhone app** stay **on your device**: the app saves them locally and does not
+upload them. Images you upload on the **website** are stored on Sphir's
+servers, as described above.
 
 ## Network use
-Sphir connects to the internet in one situation only: when you add or share a
-link, the app requests that web page to build a preview (its title,
-description, and thumbnail image). That request goes **directly to the website
-you provided**, over a secure HTTPS connection. No Sphir server is involved,
-and no information about you is attached to the request.
+- **Sync:** the app and the website talk to the Sphir server over HTTPS to sign
+  you in and to save and load your collections and cards.
+- **Link previews:** when you add or share a link, the Sphir server requests
+  that web page to build a preview (its title, description, and thumbnail
+  image). Your account details are not sent to that website.
 
-## Camera and photos
+## Camera and photos (iPhone app)
 - **Camera:** used only when you choose to take a photo for a card. Captured
-  images are saved to your device as part of that card.
+  images are saved on your device as part of that card.
 - **Photos:** you select images through Apple's system photo picker, which runs
   outside the app; Sphir only receives the specific image you choose. Text
   recognition on screenshots and photos happens **on your device**.
 
-Sphir does not upload your camera or photo content anywhere.
+The iPhone app does not upload your camera or photo content.
 
 ## Data sharing
 We do not sell, rent, or share your data with anyone. There is no third-party
-analytics, advertising, or tracking in Sphir.
+analytics, advertising, or tracking in Sphir. Our hosting provider stores the
+data on our behalf.
+
+## Deleting your data
+You can delete cards and collections at any time in the app or on the website.
+To delete your account and all its data, contact us at the address below.
 
 ## Children's privacy
-Sphir does not collect data from anyone, including children.
+Sphir is not directed at children and we do not knowingly collect data from
+children.
 
 ## Security
-Your content is stored in the app's private, sandboxed storage on your device.
-All network requests use HTTPS.
+All connections to the Sphir server use HTTPS. Passwords are stored as one-way
+hashes. Uploaded images are served at long, unguessable links.
 
 ## Changes to this policy
 If this policy changes, we will update this page and the "Last updated" date

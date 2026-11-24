@@ -21,6 +21,7 @@ enum HTTPMethod: String {
 enum NetworkError: Error, LocalizedError {
     case invalidURL
     case unauthorized
+    case invalidCredentials
     case server(status: Int, body: String?)
     case decoding(Error)
     case transport(Error)
@@ -29,6 +30,7 @@ enum NetworkError: Error, LocalizedError {
         switch self {
         case .invalidURL:            return "Invalid request URL."
         case .unauthorized:          return "Your session expired. Please sign in again."
+        case .invalidCredentials:    return "Incorrect email or password."
         case .server(let status, _): return "The server returned an error (\(status))."
         case .decoding:              return "Couldn't read the server's response."
         case .transport:             return "Couldn't reach Sphir. Check your connection."
@@ -131,9 +133,13 @@ final class NetworkService {
         #endif
 
         if http.statusCode == 401 {
-            KeychainService.clear()
-            NotificationCenter.default.post(name: .sphirUnauthorized, object: nil)
-            throw NetworkError.unauthorized
+            if authorized {
+                KeychainService.clear()
+                NotificationCenter.default.post(name: .sphirUnauthorized, object: nil)
+                throw NetworkError.unauthorized
+            } else {
+                throw NetworkError.invalidCredentials
+            }
         }
 
         guard (200..<300).contains(http.statusCode) else {
