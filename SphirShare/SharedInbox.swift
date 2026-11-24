@@ -18,6 +18,15 @@ import Foundation
 struct SharedCollectionDTO: Codable, Identifiable, Hashable {
     let id: UUID
     let name: String
+    /// The folder's id on the API (nil until the collection has synced, and for
+    /// snapshots published by an older build).
+    let serverID: String?
+
+    init(id: UUID, name: String, serverID: String? = nil) {
+        self.id = id
+        self.name = name
+        self.serverID = serverID
+    }
 }
 
 /// A card captured by a share extension, awaiting import by the main app.
@@ -36,6 +45,13 @@ struct SharedCardDTO: Codable, Identifiable, Hashable {
     /// Tags chosen in the share sheet. Optional so cards queued by an older
     /// build still decode.
     let tags: [String]?
+    /// CardType rawValue of a queued clip ("product", "video", …). Optional so
+    /// cards queued by an older build still decode (they import as plain text).
+    let cardTypeRaw: String?
+    /// Display price of a queued clip (e.g. "$29.99").
+    let price: String?
+    /// Cover image URL of a queued clip.
+    let imageURL: String?
 
     init(
         id: UUID,
@@ -47,7 +63,10 @@ struct SharedCardDTO: Codable, Identifiable, Hashable {
         sourceAppRaw: String = "safari",
         collectionID: UUID?,
         createdAt: Date,
-        tags: [String]? = nil
+        tags: [String]? = nil,
+        cardTypeRaw: String? = nil,
+        price: String? = nil,
+        imageURL: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -59,6 +78,9 @@ struct SharedCardDTO: Codable, Identifiable, Hashable {
         self.collectionID = collectionID
         self.createdAt = createdAt
         self.tags = tags
+        self.cardTypeRaw = cardTypeRaw
+        self.price = price
+        self.imageURL = imageURL
     }
 }
 
@@ -120,7 +142,10 @@ enum SharedInbox {
                 sourceAppRaw: old.sourceAppRaw,
                 collectionID: newCollectionID,
                 createdAt: old.createdAt,
-                tags: old.tags
+                tags: old.tags,
+                cardTypeRaw: old.cardTypeRaw,
+                price: old.price,
+                imageURL: old.imageURL
             )
             pending[idx] = updated
             guard let data = try? JSONEncoder().encode(pending) else { return }

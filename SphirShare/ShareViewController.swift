@@ -198,15 +198,19 @@ final class ShareViewController: UIViewController {
             sourceAppRaw: isLink ? "safari" : (isImage ? "photos" : "messages"),
             collectionID: payload.collectionID,
             createdAt: Date(),
-            tags: payload.tags
+            tags: payload.tags,
+            cardTypeRaw: payload.cardTypeRaw,
+            price: payload.price,
+            imageURL: payload.imageURL
         )
         SharedInbox.enqueueCard(card)
         return id
     }
 
-    /// Open the saved card in the app via its deep link, then finish.
-    private func openCard(_ id: UUID) {
-        if let url = URL(string: "sphir://card/\(id.uuidString)") {
+    /// Open the saved card in the app via its deep link (the API id after an
+    /// online save, else the queued card's local id), then finish.
+    private func openCard(_ id: String) {
+        if let url = URL(string: "sphir://card/\(id)") {
             self.extensionContext?.open(url) { [weak self] success in
                 if success {
                     self?.finish()

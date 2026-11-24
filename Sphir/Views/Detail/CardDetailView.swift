@@ -9,10 +9,23 @@ import SwiftUI
 import UIKit
 
 struct CardDetailView: View {
-    let card: Card
+    /// The card as navigated to; `card` below is its live version (price and
+    /// collections change after a sync or "Add to collections").
+    private let navigated: Card
 
+    @EnvironmentObject private var appStore: AppStore
     @Environment(\.dismiss) private var dismiss
     @State private var showReader = false
+    @State private var showCollections = false
+
+    init(card: Card) { navigated = card }
+
+    private var card: Card { appStore.cards.first { $0.id == navigated.id } ?? navigated }
+
+    /// Only a card that exists on the API can be filed in more collections.
+    private var canAddToCollections: Bool {
+        KeychainService.hasCredentials && card.serverID != nil
+    }
 
     /// The card's web URL, checking every field that might hold one.
     /// (There is no `metadata.sourceURL` on `Card`; the link lives in
@@ -35,6 +48,13 @@ struct CardDetailView: View {
                         .accessibilityAddTraits(.isHeader)
 
                     coverImage
+
+                    if !card.price.isEmpty {
+                        Text(card.price)
+                            .font(SphirFont.body(22, weight: .bold))
+                            .foregroundColor(SphirColor.textPrimary)
+                            .accessibilityIdentifier("cardPrice")
+                    }
 
                     // Reader entry point: below the image, above the description.
                     if let webURL {
@@ -62,6 +82,8 @@ struct CardDetailView: View {
                         tagCloud
                     }
 
+                    if canAddToCollections { addToCollectionsButton }
+
                     metadata
                 }
                 .padding(.horizontal, 20)
@@ -73,11 +95,36 @@ struct CardDetailView: View {
         .background(SphirColor.background.ignoresSafeArea())
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(isPresented: $showCollections) {
+            AddToCollectionsView(card: card)
+                .environmentObject(appStore)
+        }
         .fullScreenCover(isPresented: $showReader) {
             if let webURL {
                 WebReaderView(url: webURL, fallbackTitle: card.title)
             }
         }
+    }
+
+    private var addToCollectionsButton: some View {
+        Button {
+            showCollections = true
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "rectangle.stack.badge.plus")
+                Text("Add to collections")
+            }
+            .font(SphirFont.body(16, weight: .semibold))
+            .foregroundColor(SphirColor.taupe)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(
+                RoundedRectangle(cornerRadius: 22)
+                    .stroke(SphirColor.taupe, lineWidth: 1.5)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("addToCollectionsButton")
     }
 
     private var openInReaderButton: some View {
@@ -275,4 +322,5 @@ struct DetailTopBar: View {
     NavigationStack {
         CardDetailView(card: Card.samples(for: Collection.mockCollections[0])[0])
     }
+    .environmentObject(AppStore())
 }

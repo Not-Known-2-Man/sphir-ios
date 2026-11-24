@@ -2,11 +2,39 @@
 //  ClipLogic.swift
 //  Sphir
 //
-//  Pure logic behind the three-tap clip flow in SphirShare (Foundation only;
-//  compiled into the app, for tests, and into the extension).
+//  Pure logic behind the three-tap clip flow, shared by SphirShare and the
+//  app's +Card screen (Foundation only; compiled into the app, for tests, and
+//  into the extension).
 //
 
 import Foundation
+
+// MARK: - What the host handed us / what we queue
+
+struct SharedContent {
+    var urlString: String?
+    var text: String?
+    var sharedImageData: Data?
+    /// Cleaned <head> + JSON-LD of the page Safari already loaded (ClipPreprocess.js).
+    var pageHTML: String?
+
+    var isLink: Bool { !(urlString ?? "").isEmpty }
+    var isImage: Bool { sharedImageData != nil }
+}
+
+struct SharePayload {
+    let collectionID: UUID?
+    let title: String
+    let description: String
+    let urlString: String?
+    let bodyText: String?
+    let imageData: Data?
+    let tags: [String]
+    /// Set by the clip flow so a queued clip keeps what the preview showed.
+    var cardTypeRaw: String? = nil
+    var price: String? = nil
+    var imageURL: String? = nil
+}
 
 // MARK: - Safari preprocessing result
 
@@ -121,7 +149,14 @@ struct ClipDraft: Equatable {
     func card(collectionID: UUID? = nil) -> Card {
         Card(title: title.isEmpty ? (site.isEmpty ? "Untitled" : site) : title,
              description: description, content: url, cardType: type, sourceApp: .safari,
-             imageURL: imageURL, tags: tags, collectionID: collectionID)
+             imageURL: imageURL, price: price, tags: tags, collectionID: collectionID)
+    }
+
+    /// What goes to the offline queue when the card cannot be created online.
+    func payload(collectionID: UUID?, imageData: Data?) -> SharePayload {
+        SharePayload(collectionID: collectionID, title: card().title, description: description,
+                     urlString: url, bodyText: nil, imageData: imageData, tags: tags,
+                     cardTypeRaw: type.rawValue, price: price.isEmpty ? nil : price, imageURL: imageURL)
     }
 
     func request(folderServerID: String?) -> BusinessRequest {
@@ -218,14 +253,22 @@ struct ClipCollection: Identifiable, Hashable {
     let localID: UUID?
     var id: String { serverID ?? localID?.uuidString ?? name }
 
-    /// Server folders (signed in) matched by name to the collections the app
-    /// published to the App Group. Folders without a server id are skipped.
+    /// Server folders (signed in) matched to the collections the app published
+    /// to the App Group: by server id first, then by name (older snapshots).
+    /// Folders without a server id are skipped.
     static func pickerList(folders: [Collection], shared: [SharedCollectionDTO]) -> [ClipCollection] {
         folders.compactMap { folder in
             guard let sid = folder.serverID, !sid.isEmpty else { return nil }
-            let local = shared.first { $0.name.caseInsensitiveCompare(folder.name) == .orderedSame }
+            let local = shared.first { $0.serverID == sid }
+                ?? shared.first { $0.serverID == nil && $0.name.caseInsensitiveCompare(folder.name) == .orderedSame }
             return ClipCollection(name: folder.name, serverID: sid, localID: local?.id)
         }
+    }
+
+    /// The collections the app published, used when the folder list cannot be
+    /// fetched: they keep their server id, so an online save still works.
+    static func fromShared(_ shared: [SharedCollectionDTO]) -> [ClipCollection] {
+        shared.map { ClipCollection(name: $0.name, serverID: $0.serverID, localID: $0.id) }
     }
 }
 
@@ -251,5 +294,23 @@ enum FolderSelection {
     static func preselect(lastUsed: String?, available: [String]) -> String? {
         if let lastUsed, available.contains(lastUsed) { return lastUsed }
         return available.first
+    }
+}
+
+// MARK: - +Card input
+
+enum AddCardInput {
+    /// A routable http(s) link from pasted or typed text, or nil. A bare domain
+    /// ("apple.com", "www.apple.com/mac") gets "https://".
+    static func link(from text: String?) -> String? {
+        guard let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty,
+              trimmed.rangeOfCharacter(from: .whitespacesAndNewlines) == nil else { return nil }
+        let full = trimmed.contains("://") ? trimmed : "https://" + trimmed
+        guard let url = URL(string: full), let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              let host = url.host, host.contains("."),
+              let tld = host.split(separator: ".").last, tld.count >= 2,
+              tld.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" }) else { return nil }
+        return full
     }
 }

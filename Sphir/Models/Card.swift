@@ -14,6 +14,8 @@ enum SourceApp: String, CaseIterable, Codable {
     case messages
     case photos
     case screenshot
+    /// Written by the user in the app ("Write your own").
+    case own
 }
 
 /// Sync state of a card relative to the backend.
@@ -34,6 +36,8 @@ struct Card: Identifiable, Hashable {
     var imageURL: String?
     /// Thumbnail image bytes fetched from link metadata, if any.
     var imageData: Data?
+    /// Display price ("$29.99") when the clip is a product; "" otherwise.
+    var price: String
     var tags: [String]
     var syncStatus: SyncStatus
     var createdAt: Date
@@ -41,6 +45,9 @@ struct Card: Identifiable, Hashable {
     var collectionID: UUID?
     /// The card's id on the backend (nil until synced).
     var serverID: String?
+    /// Every collection of the card on the backend, primary first (empty when
+    /// unknown, e.g. an older API or a card that has not synced).
+    var folderServerIDs: [String]
 
     init(
         id: UUID = UUID(),
@@ -51,11 +58,13 @@ struct Card: Identifiable, Hashable {
         sourceApp: SourceApp = .safari,
         imageURL: String? = nil,
         imageData: Data? = nil,
+        price: String = "",
         tags: [String] = [],
         syncStatus: SyncStatus = .synced,
         createdAt: Date = Date(),
         collectionID: UUID? = nil,
-        serverID: String? = nil
+        serverID: String? = nil,
+        folderServerIDs: [String] = []
     ) {
         self.id = id
         self.title = title
@@ -65,11 +74,21 @@ struct Card: Identifiable, Hashable {
         self.sourceApp = sourceApp
         self.imageURL = imageURL
         self.imageData = imageData
+        self.price = price
         self.tags = tags
         self.syncStatus = syncStatus
         self.createdAt = createdAt
         self.collectionID = collectionID
         self.serverID = serverID
+        self.folderServerIDs = folderServerIDs
+    }
+
+    /// True when the card is filed in the collection: as its primary (local id)
+    /// or as one of its extra collections (server id), matching web parity.
+    func isIn(collectionID id: UUID, serverID folderID: String?) -> Bool {
+        if collectionID == id { return true }
+        guard let folderID, !folderID.isEmpty else { return false }
+        return folderServerIDs.contains(folderID)
     }
 }
 
@@ -83,6 +102,7 @@ extension SourceApp {
         case .messages:   return "Messages"
         case .photos:     return "Photos"
         case .screenshot: return "Screenshot"
+        case .own:        return "Written by you"
         }
     }
 
@@ -94,6 +114,7 @@ extension SourceApp {
         case .messages:   return "message"
         case .photos:     return "photo"
         case .screenshot: return "camera.viewfinder"
+        case .own:        return "square.and.pencil"
         }
     }
 }

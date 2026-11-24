@@ -100,9 +100,11 @@ struct BusinessDTO: Decodable {
             cardType: type,
             sourceApp: .safari,
             imageURL: imageURL,
+            price: price,
             tags: visibleTags,
             syncStatus: .synced,
-            serverID: serverID
+            serverID: serverID,
+            folderServerIDs: folderServerIDs
         )
     }
 }
@@ -123,8 +125,10 @@ struct BusinessRequest: Encodable {
         case ogImage = "og_image"
     }
 
+    /// `price` overrides the card's own price (the clip draft passes its edited one).
     init(card: Card, folderServerID: String? = nil, price: String? = nil) {
-        self.price = price
+        let own = card.price.isEmpty ? nil : card.price
+        self.price = price ?? own
         title = card.title
         description = card.description
         website = card.content

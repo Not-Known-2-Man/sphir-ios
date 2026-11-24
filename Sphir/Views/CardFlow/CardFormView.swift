@@ -2,7 +2,8 @@
 //  CardFormView.swift
 //  Sphir
 //
-//  Step 3 of the "+Card" flow: fill in card details and save.
+//  "Write your own" (Original Scribe): title, text, description, tags and a
+//  collection; saved locally and pushed by the normal sync.
 //
 
 import SwiftUI
@@ -13,7 +14,7 @@ struct CardFormView: View {
 
     @State private var title: String = ""
     @State private var description: String = ""
-    @State private var urlText: String = ""
+    @State private var bodyText: String = ""
     @State private var tags: String = ""
     @State private var selectedCollectionID: UUID?
     @State private var showSuccess = false
@@ -22,23 +23,17 @@ struct CardFormView: View {
         !title.isEmpty && selectedCollectionID != nil
     }
 
-    private var showsURLField: Bool {
-        flow.selectedSource == .url
-    }
-
     private var selectedCollection: Collection? {
         appStore.collections.first { $0.id == selectedCollectionID }
     }
 
     /// Build the card from the form + flow selections and file it away.
     private func save() {
-        appStore.addCard(
+        appStore.addOwnCard(
             title: title,
             description: description,
-            urlText: urlText,
+            content: bodyText,
             tagsText: tags,
-            type: flow.selectedType ?? .text,
-            source: flow.selectedSource ?? .photos,
             collectionID: selectedCollectionID ?? appStore.collections.first?.id
         )
         showSuccess = true
@@ -67,13 +62,11 @@ struct CardFormView: View {
                                 .lineLimit(3...6)
                         }
 
-                        if showsURLField {
-                            formField(label: "URL") {
-                                TextField("https://...", text: $urlText)
-                                    .textFieldStyle(.plain)
-                                    .keyboardType(.URL)
-                                    .autocapitalization(.none)
-                            }
+                        formField(label: "Your text") {
+                            TextField("Write something…", text: $bodyText, axis: .vertical)
+                                .textFieldStyle(.plain)
+                                .lineLimit(4...10)
+                                .accessibilityIdentifier("cardBodyField")
                         }
 
                         formField(label: "Tags") {
@@ -82,8 +75,6 @@ struct CardFormView: View {
                         }
 
                         collectionPicker
-
-                        coverImageField
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 16)
@@ -168,7 +159,7 @@ struct CardFormView: View {
 
     private var navBar: some View {
         ZStack {
-            Text("New Card")
+            Text("Write your own")
                 .font(SphirFont.body(17, weight: .semibold))
                 .foregroundColor(SphirColor.textPrimary)
 
@@ -249,39 +240,6 @@ struct CardFormView: View {
         }
     }
 
-    private var coverImageField: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Cover Image")
-                .font(SphirFont.body(13, weight: .semibold))
-                .foregroundColor(SphirColor.mutedText)
-
-            Button {
-                print("Add Image tapped")
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "photo")
-                    Text("Add Image")
-                        .font(SphirFont.body(15, weight: .medium))
-                }
-                .foregroundColor(SphirColor.mutedText)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 28)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(SphirColor.cardBackgroundAlt)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(
-                            SphirColor.border,
-                            style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])
-                        )
-                )
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
     // MARK: - Bottom Done Button
 
     private var doneButton: some View {
@@ -311,8 +269,7 @@ struct CardFormView: View {
 
 #Preview {
     let flow = CardFlowCoordinator()
-    flow.selectedType = .text
-    flow.selectedSource = .url
+    flow.selectedType = .originalScribe
     return CardFormView()
         .environmentObject(flow)
         .environmentObject(AppStore())

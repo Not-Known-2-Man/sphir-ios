@@ -4,8 +4,10 @@
 //
 //  Three-tap clip: share a page -> auto-filled preview card -> Save Card ->
 //  saved-card screen (Figma s1-03 / s1-04, with the saved card and "Add to more
-//  collections" Alissa asked for). The older crop / extract-text flow
-//  (ShareView) stays reachable from the "..." menu.
+//  collections" Alissa asked for). Compiled into SphirShare and into the app,
+//  where the +Card screen reuses it for a pasted link. In the extension the
+//  older crop / extract-text flow (ShareView) stays reachable from the "..."
+//  menu (`onCrop`); the app has no such menu.
 //
 
 import SwiftUI
@@ -35,13 +37,19 @@ final class ClipFlowModel: ObservableObject {
 
     private let content: SharedContent
     private let sharedCollections: [SharedCollectionDTO]
-    private let queue: (SharePayload) -> UUID
+    private let queue: @MainActor (SharePayload) -> UUID
+    /// True inside the main app (light background, local-store queue).
+    let inApp: Bool
     private var signedIn = KeychainService.hasCredentials
     private var started = false
 
-    init(content: SharedContent, sharedCollections: [SharedCollectionDTO], queue: @escaping (SharePayload) -> UUID) {
+    /// `queue` stores a clip that could not be created online: the App Group
+    /// queue in the extension, the local store in the app.
+    init(content: SharedContent, sharedCollections: [SharedCollectionDTO], inApp: Bool = false,
+         queue: @escaping @MainActor (SharePayload) -> UUID) {
         self.content = content
         self.sharedCollections = sharedCollections
+        self.inApp = inApp
         self.queue = queue
         draft = ClipDraft(fallbackURL: content.urlString ?? "")
     }
@@ -49,6 +57,14 @@ final class ClipFlowModel: ObservableObject {
     var selected: ClipCollection? { collections.first { $0.id == selectedID } }
     var savedOnline: Bool { savedServerID != nil }
     var extrasChanged: Bool { extraIDs != appliedExtraIDs }
+
+    /// Id for sphir://card/<id>: the API id after an online save (the app has
+    /// not imported the card yet), else the queued card's local id.
+    var viewCardID: String? { savedServerID ?? savedLocalID?.uuidString }
+
+    private var queuedText: String {
+        inApp ? "Saved — it will sync when you're back online" : ClipSavePath.queuedMessage
+    }
 
     // MARK: Load
 
@@ -94,8 +110,8 @@ final class ClipFlowModel: ObservableObject {
                 noteIfUnauthorized(error)
             }
         }
-        let local = sharedCollections.isEmpty ? SharedInbox.fallbackCollections : sharedCollections
-        return local.map { ClipCollection(name: $0.name, serverID: nil, localID: $0.id) }
+        let local = sharedCollections.isEmpty && !inApp ? SharedInbox.fallbackCollections : sharedCollections
+        return ClipCollection.fromShared(local)
     }
 
     private func noteIfUnauthorized(_ error: Error) {
@@ -134,11 +150,8 @@ final class ClipFlowModel: ObservableObject {
             request.timeoutInterval = 4
             coverData = try? await URLSession.shared.data(for: request).0
         }
-        let payload = SharePayload(
-            collectionID: selected?.localID, title: draft.card().title, description: draft.description,
-            urlString: draft.url, bodyText: nil, imageData: coverData, tags: draft.tags)
-        savedLocalID = queue(payload)
-        queuedMessage = ClipSavePath.queuedMessage
+        savedLocalID = queue(draft.payload(collectionID: selected?.localID, imageData: coverData))
+        queuedMessage = reason == .signedOut && !inApp ? ClipSavePath.queuedMessage : queuedText
         if reason == .signedOut { banner = ClipSavePath.signInMessage }
         phase = .saved
     }
@@ -169,55 +182,14 @@ final class ClipFlowModel: ObservableObject {
     }
 }
 
-// MARK: - Root (clip flow, with the crop flow one tap away)
-
-struct ShareRoot: View {
-    let content: SharedContent
-    let collections: [SharedCollectionDTO]
-    let storedCollections: [SharedCollectionDTO]
-    let onSave: (SharePayload) -> UUID
-    let onUpdateCollection: (UUID, UUID?) -> Void
-    let onScreenChange: (ExtensionScreen) -> Void
-    let onView: (UUID) -> Void
-    let onOpenApp: () -> Void
-    let onDismiss: () -> Void
-    let onCancel: () -> Void
-
-    @State private var showCropFlow = false
-    @StateObject private var model: ClipFlowModel
-
-    init(content: SharedContent, collections: [SharedCollectionDTO], storedCollections: [SharedCollectionDTO],
-         onSave: @escaping (SharePayload) -> UUID,
-         onUpdateCollection: @escaping (UUID, UUID?) -> Void,
-         onScreenChange: @escaping (ExtensionScreen) -> Void,
-         onView: @escaping (UUID) -> Void, onOpenApp: @escaping () -> Void,
-         onDismiss: @escaping () -> Void, onCancel: @escaping () -> Void) {
-        self.content = content; self.collections = collections; self.storedCollections = storedCollections
-        self.onSave = onSave; self.onUpdateCollection = onUpdateCollection
-        self.onScreenChange = onScreenChange; self.onView = onView; self.onOpenApp = onOpenApp
-        self.onDismiss = onDismiss; self.onCancel = onCancel
-        _model = StateObject(wrappedValue: ClipFlowModel(content: content, sharedCollections: storedCollections, queue: onSave))
-    }
-
-    var body: some View {
-        if content.isLink && !showCropFlow {
-            ClipFlowView(model: model, onCrop: { showCropFlow = true },
-                         onView: { id in id.map(onView) ?? onOpenApp() },
-                         onDismiss: onDismiss, onCancel: onCancel)
-        } else {
-            ShareView(content: content, collections: collections, onSave: onSave,
-                      onUpdateCollection: onUpdateCollection, onScreenChange: onScreenChange,
-                      onView: onView, onDismiss: onDismiss, onCancel: onCancel)
-        }
-    }
-}
-
 // MARK: - Views
 
 struct ClipFlowView: View {
     @ObservedObject var model: ClipFlowModel
-    let onCrop: () -> Void
-    let onView: (UUID?) -> Void
+    /// Extension only: opens the crop / extract-text flow from the "..." menu.
+    let onCrop: (() -> Void)?
+    /// Receives the id for sphir://card/<id> (nil: just open the app).
+    let onView: (String?) -> Void
     let onDismiss: () -> Void
     let onCancel: () -> Void
 
@@ -237,7 +209,7 @@ struct ClipFlowView: View {
 
 private struct PreviewCardView: View {
     @ObservedObject var model: ClipFlowModel
-    let onCrop: () -> Void
+    let onCrop: (() -> Void)?
     let onCancel: () -> Void
 
     var body: some View {
@@ -257,6 +229,7 @@ private struct PreviewCardView: View {
         .padding(.horizontal, 20)
         .padding(.bottom, 20)
         .padding(.top, 12)
+        .background { if model.inApp { ShareColor.background.ignoresSafeArea() } }
     }
 
     private var card: some View {
@@ -268,16 +241,20 @@ private struct PreviewCardView: View {
                 Spacer()
                 Image("SphirMark").resizable().scaledToFit().frame(height: 26).accessibilityLabel("Sphir")
                 Spacer()
-                Menu {
-                    Button { onCrop() } label: { Label("Crop or extract text…", systemImage: "crop") }
-                    Button(role: .cancel, action: onCancel) { Text("Cancel") }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundColor(ShareColor.taupe)
-                        .frame(width: 44, height: 28, alignment: .trailing)
+                if let onCrop {
+                    Menu {
+                        Button { onCrop() } label: { Label("Crop or extract text…", systemImage: "crop") }
+                        Button(role: .cancel, action: onCancel) { Text("Cancel") }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundColor(ShareColor.taupe)
+                            .frame(width: 44, height: 28, alignment: .trailing)
+                    }
+                    .accessibilityLabel("More")
+                } else {
+                    Color.clear.frame(width: 44, height: 28)
                 }
-                .accessibilityLabel("More")
             }
 
             if model.phase == .loading {
@@ -298,10 +275,12 @@ private struct PreviewCardView: View {
     private var details: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(model.draft.typeLabel)
+                .accessibilityIdentifier("clipTypeLabel")
                 .font(ShareFont.body(11, weight: .bold)).tracking(1.2)
                 .foregroundColor(ShareColor.taupe)
 
             TextField("Title", text: $model.draft.title, axis: .vertical)
+                .accessibilityIdentifier("clipTitleField")
                 .font(ShareFont.heading(20))
                 .foregroundColor(ShareColor.textPrimary)
                 .lineLimit(1...4)
@@ -325,6 +304,7 @@ private struct PreviewCardView: View {
 
             if !model.draft.price.isEmpty {
                 Text(model.draft.price)
+                    .accessibilityIdentifier("clipPrice")
                     .font(ShareFont.body(20, weight: .bold))
                     .foregroundColor(ShareColor.textPrimary)
             }
@@ -348,7 +328,7 @@ private struct PreviewCardView: View {
         VStack(spacing: 6) {
             Text("Save to Collection")
                 .font(ShareFont.body(13, weight: .semibold))
-                .foregroundColor(.white)
+                .foregroundColor(model.inApp ? ShareColor.mutedText : .white)
             Menu {
                 ForEach(model.collections) { col in
                     Button(col.name) { model.selectedID = col.id }
@@ -364,7 +344,9 @@ private struct PreviewCardView: View {
                 }
                 .padding(.horizontal, 16).padding(.vertical, 14)
                 .background(RoundedRectangle(cornerRadius: 12).fill(Color.white))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(model.inApp ? ShareColor.border : .clear, lineWidth: 1))
             }
+            .accessibilityIdentifier("clipCollectionPicker")
             .disabled(model.collections.isEmpty)
         }
     }
@@ -381,6 +363,7 @@ private struct PreviewCardView: View {
             .frame(maxWidth: .infinity, minHeight: 54)
             .background(Capsule().fill(ShareColor.taupe.opacity(model.phase == .preview ? 1 : 0.6)))
         }
+        .accessibilityIdentifier("saveCardButton")
         .disabled(model.phase != .preview)
     }
 }
@@ -418,7 +401,7 @@ private struct CoverView: View {
 
 private struct SavedCardView: View {
     @ObservedObject var model: ClipFlowModel
-    let onView: (UUID?) -> Void
+    let onView: (String?) -> Void
     let onDismiss: () -> Void
     @State private var showMore = false
 
@@ -433,6 +416,7 @@ private struct SavedCardView: View {
                     }
                     .padding(.top, 36)
                     Text("Card Saved!").font(ShareFont.heading(30)).foregroundColor(ShareColor.textPrimary)
+                        .accessibilityIdentifier("cardSavedTitle")
 
                     if let message = model.queuedMessage {
                         Text(message).font(ShareFont.body(13)).foregroundColor(ShareColor.mutedText)
@@ -454,7 +438,7 @@ private struct SavedCardView: View {
                     if model.savedOnline { moreCollections }
 
                     VStack(spacing: 10) {
-                        linkButton("VIEW CARD") { onView(model.savedLocalID) }
+                        linkButton("VIEW CARD", id: "viewSavedCardButton") { onView(model.viewCardID) }
                         Button(action: onDismiss) {
                             Text("Done").font(ShareFont.body(16, weight: .bold)).foregroundColor(.white)
                                 .frame(maxWidth: .infinity, minHeight: 52)
@@ -488,7 +472,7 @@ private struct SavedCardView: View {
 
     private var moreCollections: some View {
         VStack(spacing: 10) {
-            linkButton(showMore ? "HIDE COLLECTIONS" : "ADD TO MORE COLLECTIONS") { showMore.toggle() }
+            linkButton(showMore ? "HIDE COLLECTIONS" : "ADD TO MORE COLLECTIONS", id: "addToMoreCollectionsButton") { showMore.toggle() }
             if showMore {
                 VStack(spacing: 0) {
                     ForEach(model.collections.filter { $0.serverID != nil && $0.id != model.selectedID }) { col in
@@ -525,10 +509,11 @@ private struct SavedCardView: View {
         }
     }
 
-    private func linkButton(_ title: String, action: @escaping () -> Void) -> some View {
+    private func linkButton(_ title: String, id: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title).font(ShareFont.body(14, weight: .bold)).foregroundColor(Color(red: 0, green: 0.4, blue: 0.8))
                 .frame(maxWidth: .infinity, minHeight: 36)
         }
+        .accessibilityIdentifier(id)
     }
 }

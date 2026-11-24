@@ -37,18 +37,14 @@ final class SphirUITests: XCTestCase {
         // Dashboard → +Card
         app.buttons["addCardButton"].tap()
 
-        // Step 1: Select Type → Text
-        let textType = app.buttons["cardType_text"]
-        XCTAssertTrue(textType.waitForExistence(timeout: 8), "Card type list should appear.")
-        textType.tap()
+        // +Card is one screen: "Write your own" opens the manual card form
+        // (a link goes to the preview card; photos open system pickers).
+        let write = app.buttons["addCardWriteButton"]
+        XCTAssertTrue(write.waitForExistence(timeout: 8), "The +Card screen should appear.")
+        XCTAssertFalse(app.staticTexts["Select Card Type"].exists, "There is no card type step anymore.")
+        write.tap()
 
-        // Step 2: Select Source → Paste URL (leads to the manual card form;
-        // Photos/Camera/Screenshots open system pickers instead).
-        let urlSource = app.buttons["cardSource_url"]
-        XCTAssertTrue(urlSource.waitForExistence(timeout: 5), "Source list should appear.")
-        urlSource.tap()
-
-        // Step 3: Form → enter a title and save.
+        // Form → enter a title and save.
         let titleField = app.textFields["cardTitleField"]
         XCTAssertTrue(titleField.waitForExistence(timeout: 8), "Card form should appear.")
         titleField.tap()
@@ -96,20 +92,9 @@ final class SphirUITests: XCTestCase {
             waitForExpectations(timeout: 10)
             addCard.tap()
 
-            let textType = app.buttons["cardType_text"]
-            XCTAssertTrue(textType.waitForExistence(timeout: 8), "Card flow should open for \(title).")
-            textType.tap()
-            let urlSource = app.buttons["cardSource_url"]
-            XCTAssertTrue(urlSource.waitForExistence(timeout: 5))
-            urlSource.tap()
-
-            // Like a real user: paste a link and hit Return (non-resolving
-            // host so the metadata fetch can't overwrite the title).
-            let urlField = app.textFields["cardURLField"]
-            XCTAssertTrue(urlField.waitForExistence(timeout: 8))
-            urlField.tap()
-            if !app.keyboards.element.waitForExistence(timeout: 2) { urlField.tap() }
-            urlField.typeText("https://example.invalid\n")
+            let write = app.buttons["addCardWriteButton"]
+            XCTAssertTrue(write.waitForExistence(timeout: 8), "Card flow should open for \(title).")
+            write.tap()
 
             let titleField = app.textFields["cardTitleField"]
             XCTAssertTrue(titleField.waitForExistence(timeout: 8))
@@ -433,13 +418,7 @@ final class SphirUITests: XCTestCase {
         app.launch()
 
         app.buttons["addCardButton"].tap()
-        let pasteTextType = app.buttons["cardType_text"]
-        XCTAssertTrue(pasteTextType.waitForExistence(timeout: 5))
-        pasteTextType.tap()
-        let pasteUrlSource = app.buttons["cardSource_url"]
-        XCTAssertTrue(pasteUrlSource.waitForExistence(timeout: 5))
-        pasteUrlSource.tap()
-
+        // One field for any link; the preview card fills in the title.
         let urlField = app.textFields["cardURLField"]
         XCTAssertTrue(urlField.waitForExistence(timeout: 5))
         urlField.tap()
@@ -448,10 +427,9 @@ final class SphirUITests: XCTestCase {
         }
         urlField.typeText("https://apple.com\n")
 
-        // The title field's value should become "Apple" once metadata loads.
-        let titleField = app.textFields["cardTitleField"]
-        XCTAssertTrue(titleField.waitForExistence(timeout: 5))
-        let populated = NSPredicate(format: "value == %@", "Apple")
+        let titleField = app.descendants(matching: .any)["clipTitleField"]
+        XCTAssertTrue(titleField.waitForExistence(timeout: 20))
+        let populated = NSPredicate(format: "value CONTAINS %@", "Apple")
         expectation(for: populated, evaluatedWith: titleField)
         waitForExpectations(timeout: 20)
     }
@@ -465,25 +443,21 @@ final class SphirUITests: XCTestCase {
         app.launch()
 
         app.buttons["addCardButton"].tap()
-        let textType = app.buttons["cardType_text"]
-        XCTAssertTrue(textType.waitForExistence(timeout: 5))
-        textType.tap()
-        let urlSource = app.buttons["cardSource_url"]
-        XCTAssertTrue(urlSource.waitForExistence(timeout: 5))
-        urlSource.tap()
-
         let urlField = app.textFields["cardURLField"]
         XCTAssertTrue(urlField.waitForExistence(timeout: 5))
         urlField.tap()
         if !app.keyboards.element.waitForExistence(timeout: 2) { urlField.tap() }
-        urlField.typeText("https://example.invalid")
+        urlField.typeText("https://example.invalid\n")
 
-        let titleField = app.textFields["cardTitleField"]
-        XCTAssertTrue(titleField.waitForExistence(timeout: 5))
+        // Offline: the preview card has no data to invent, so name the card.
+        let titleField = app.descendants(matching: .any)["clipTitleField"]
+        XCTAssertTrue(titleField.waitForExistence(timeout: 20))
         titleField.tap()
         titleField.typeText("Reader Test Card")
+        app.buttons["saveCardButton"].tap()
 
-        app.buttons["navDoneButton"].tap()
+        XCTAssertTrue(app.staticTexts["Card Saved!"].waitForExistence(timeout: 10))
+        app.buttons["Done"].tap()
 
         // Wait for the dashboard to be interactive again (success cover gone),
         // then open the collection (tapping the title text, as other tests do).
