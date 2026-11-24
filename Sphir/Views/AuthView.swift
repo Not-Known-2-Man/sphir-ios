@@ -155,7 +155,7 @@ struct AuthView: View {
     }
 
     private func secureField(_ placeholder: String, text: Binding<String>, id: String) -> some View {
-        SecureField(placeholder, text: text)
+        PasswordField(placeholder: placeholder, text: text, id: id)
             .textFieldStyle(.plain)
             .font(SphirFont.body(15))
             .foregroundColor(SphirColor.textPrimary)
@@ -163,7 +163,6 @@ struct AuthView: View {
             .padding(.vertical, 14)
             .background(RoundedRectangle(cornerRadius: 12).fill(SphirColor.cardBackground))
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(SphirColor.border, lineWidth: 1))
-            .accessibilityIdentifier(id)
     }
 
     private var submitButton: some View {

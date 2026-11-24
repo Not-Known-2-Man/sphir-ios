@@ -10,6 +10,7 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject private var session: AuthSession
     @Environment(\.dismiss) private var dismiss
+    @State private var showingDeleteAccountSheet = false
 
     private var appVersion: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
@@ -33,6 +34,10 @@ struct SettingsView: View {
 
                     signOutButton
 
+                    if !session.isGuest {
+                        deleteAccountButton
+                    }
+
                     Text(appVersion)
                         .font(SphirFont.body(12))
                         .foregroundColor(SphirColor.mutedText)
@@ -45,6 +50,12 @@ struct SettingsView: View {
             }
         }
         .background(SphirColor.background.ignoresSafeArea())
+        .sheet(isPresented: $showingDeleteAccountSheet) {
+            DeleteAccountSheet {
+                dismiss()
+            }
+            .environmentObject(session)
+        }
     }
 
     // MARK: - Profile
@@ -154,6 +165,25 @@ struct SettingsView: View {
         .accessibilityIdentifier("signOutButton")
     }
 
+    private var deleteAccountButton: some View {
+        Button {
+            showingDeleteAccountSheet = true
+        } label: {
+            Text("Delete Account")
+                .font(SphirFont.body(16, weight: .semibold))
+                .foregroundColor(.red)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(SphirColor.cardBackground)
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(SphirColor.border, lineWidth: 1))
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("deleteAccountButton")
+    }
+
     #if DEBUG
     private var resetOnboardingButton: some View {
         Button {
@@ -171,6 +201,104 @@ struct SettingsView: View {
     }
 
     #endif
+}
+
+struct DeleteAccountSheet: View {
+    @EnvironmentObject private var session: AuthSession
+    @Environment(\.dismiss) private var dismiss
+    let onAccountDeleted: () -> Void
+
+    @State private var password = ""
+    @State private var isDeleting = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 20) {
+                Text("This permanently deletes your account, collections and cards. This cannot be undone.")
+                    .font(SphirFont.body(14))
+                    .foregroundColor(SphirColor.mutedText)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                PasswordField(placeholder: "Current password", text: $password, id: "deleteAccountPasswordField")
+                    .textFieldStyle(.roundedBorder)
+
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(SphirFont.body(13))
+                        .foregroundColor(.red)
+                        .accessibilityIdentifier("deleteAccountErrorMessage")
+                }
+
+                Spacer()
+
+                VStack(spacing: 12) {
+                    Button(role: .destructive) {
+                        performDelete()
+                    } label: {
+                        HStack {
+                            if isDeleting {
+                                ProgressView()
+                                    .padding(.trailing, 4)
+                            }
+                            Text("Delete Account")
+                                .font(SphirFont.body(16, weight: .semibold))
+                                .foregroundColor(.white)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(password.isEmpty || isDeleting ? Color.red.opacity(0.4) : Color.red)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(password.isEmpty || isDeleting)
+                    .accessibilityIdentifier("confirmDeleteAccountButton")
+
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .font(SphirFont.body(16, weight: .regular))
+                    .foregroundColor(SphirColor.textPrimary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .disabled(isDeleting)
+                    .accessibilityIdentifier("cancelDeleteAccountButton")
+                }
+            }
+            .padding(20)
+            .navigationTitle("Delete Account")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .disabled(isDeleting)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    private func performDelete() {
+        guard !password.isEmpty, !isDeleting else { return }
+        isDeleting = true
+        errorMessage = nil
+
+        Task {
+            let result = await session.deleteAccount(password: password)
+            isDeleting = false
+            switch result {
+            case .success:
+                dismiss()
+                onAccountDeleted()
+            case .incorrectPassword:
+                errorMessage = "Incorrect password"
+            case .failed:
+                errorMessage = "Could not delete your account. Please try again."
+            }
+        }
+    }
 }
 
 #Preview {

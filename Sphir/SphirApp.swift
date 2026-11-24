@@ -11,10 +11,19 @@ import CoreData
 @main
 struct SphirApp: App {
     let persistenceController = PersistenceController.shared
-    @StateObject private var appStore = AppStore()
+    @StateObject private var appStore: AppStore
     @StateObject private var router = NavigationRouter()
-    @StateObject private var session = AuthSession()
+    @StateObject private var session: AuthSession
     @Environment(\.scenePhase) private var scenePhase
+
+    init() {
+        let store = AppStore()
+        let auth = AuthSession(wipeLocalData: {
+            store.resetLocalData()
+        })
+        _appStore = StateObject(wrappedValue: store)
+        _session = StateObject(wrappedValue: auth)
+    }
 
     var body: some Scene {
         WindowGroup {
