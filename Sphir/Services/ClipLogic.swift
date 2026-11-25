@@ -314,6 +314,29 @@ enum CollectionSelection {
     }
 
     static func primary(of selected: [String]) -> String? { selected.first }
+
+    /// After "+ New collection": the new collection is the selection (and so
+    /// the card's primary collection).
+    static func afterCreate(id: String) -> [String] { [id] }
+}
+
+/// The name typed for "New collection".
+enum NewCollectionName {
+    enum Result: Equatable {
+        case invalid
+        /// A collection with this name (case-insensitive) is at this index of `existing`.
+        case existing(Int)
+        case create(String)
+    }
+
+    static func resolve(_ typed: String, existing: [String]) -> Result {
+        let name = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return .invalid }
+        if let index = existing.firstIndex(where: { $0.caseInsensitiveCompare(name) == .orderedSame }) {
+            return .existing(index)
+        }
+        return .create(name)
+    }
 }
 
 // MARK: - +Card input

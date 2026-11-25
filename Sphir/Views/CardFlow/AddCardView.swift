@@ -165,7 +165,11 @@ private struct ClipScreen: View {
             content: SharedContent(urlString: url),
             sharedCollections: AppStore.sharedCollections(from: store.collections),
             inApp: true,
-            queue: { store.addClipCard($0) }))
+            queue: { store.addClipCard($0) },
+            createCollection: { name in
+                let created = await store.addCollectionAwaitingServer(name: name)
+                return ClipCollection(name: created.name, serverID: created.serverID, localID: created.id)
+            }))
     }
 
     var body: some View {

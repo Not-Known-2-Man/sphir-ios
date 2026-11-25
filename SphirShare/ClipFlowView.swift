@@ -26,6 +26,8 @@ final class ClipFlowModel: ObservableObject {
     /// Selected collection ids, in tap order: the first is the primary one.
     @Published var selectedIDs: [String] = []
     @Published var banner: String?
+    /// "+ New collection" failed (nothing was changed).
+    @Published var collectionError: String?
 
     // Saved screen
     @Published var savedServerID: String?
@@ -43,6 +45,9 @@ final class ClipFlowModel: ObservableObject {
     private let content: SharedContent
     private let sharedCollections: [SharedCollectionDTO]
     private let queue: @MainActor (SharePayload) -> UUID
+    /// Creates a collection (nil on failure). The app passes its store; the
+    /// extension uses the API directly when signed in.
+    private let createCollectionAction: (@MainActor (String) async -> ClipCollection?)?
     /// True inside the main app (light background, local-store queue).
     let inApp: Bool
     private var signedIn = KeychainService.hasCredentials
@@ -51,7 +56,9 @@ final class ClipFlowModel: ObservableObject {
     /// `queue` stores a clip that could not be created online: the App Group
     /// queue in the extension, the local store in the app.
     init(content: SharedContent, sharedCollections: [SharedCollectionDTO], inApp: Bool = false,
-         queue: @escaping @MainActor (SharePayload) -> UUID) {
+         queue: @escaping @MainActor (SharePayload) -> UUID,
+         createCollection: (@MainActor (String) async -> ClipCollection?)? = nil) {
+        self.createCollectionAction = createCollection
         self.content = content
         self.sharedCollections = sharedCollections
         self.inApp = inApp
@@ -68,6 +75,39 @@ final class ClipFlowModel: ObservableObject {
 
     func toggle(_ collection: ClipCollection) {
         selectedIDs = CollectionSelection.toggle(collection.id, in: selectedIDs)
+    }
+
+    /// "+ New collection": creates it, adds it to the chips and selects it. The
+    /// typed card fields (`draft`) are untouched. A name that already exists
+    /// just selects that collection.
+    func createCollection(named typed: String) async {
+        collectionError = nil
+        switch NewCollectionName.resolve(typed, existing: collections.map(\.name)) {
+        case .invalid:
+            return
+        case .existing(let index):
+            selectedIDs = CollectionSelection.afterCreate(id: collections[index].id)
+        case .create(let name):
+            guard let created = await makeCollection(name) else {
+                collectionError = "Couldn't create the collection. Try again."
+                return
+            }
+            collections.append(created)
+            selectedIDs = CollectionSelection.afterCreate(id: created.id)
+        }
+    }
+
+    private func makeCollection(_ name: String) async -> ClipCollection? {
+        if let createCollectionAction { return await createCollectionAction(name) }
+        guard signedIn else { return nil }
+        do {
+            let folder = try await CollectionAPIService.createCollection(name: name, description: "", privacy: "private")
+            guard let sid = folder.serverID, !sid.isEmpty else { return nil }
+            return ClipCollection(name: folder.name, serverID: sid, localID: nil)
+        } catch {
+            noteIfUnauthorized(error)
+            return nil
+        }
     }
 
     /// Id for sphir://collection/<id>: the primary collection's API id, else
@@ -303,6 +343,8 @@ private struct ClipButton: View {
 
 private struct PreviewCardView: View {
     @ObservedObject var model: ClipFlowModel
+    @State private var showNewCollection = false
+    @State private var newCollectionName = ""
     let onCrop: (() -> Void)?
     let onCancel: () -> Void
 
@@ -467,18 +509,45 @@ private struct PreviewCardView: View {
         .shadow(color: Color.black.opacity(0.08), radius: 10, y: 4)
     }
 
-    @ViewBuilder private var collectionChips: some View {
-        if !model.collections.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                Label("Add to Collections", systemImage: "square.stack.3d.up")
-                    .font(ShareFont.body(16, weight: .semibold))
-                    .foregroundColor(ShareColor.textPrimary)
-                ChipFlowLayout(spacing: 8) {
-                    ForEach(model.collections) { col in chip(col) }
-                }
+    private var collectionChips: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Add to Collections", systemImage: "square.stack.3d.up")
+                .font(ShareFont.body(16, weight: .semibold))
+                .foregroundColor(ShareColor.textPrimary)
+            ChipFlowLayout(spacing: 8) {
+                ForEach(model.collections) { col in chip(col) }
+                newCollectionChip
             }
-            .padding(.top, 4)
+            if let error = model.collectionError {
+                Text(error)
+                    .font(ShareFont.body(13))
+                    .foregroundColor(.red)
+                    .accessibilityIdentifier("clipNewCollectionError")
+            }
         }
+        .padding(.top, 4)
+        .alert("New collection", isPresented: $showNewCollection) {
+            TextField("Collection name", text: $newCollectionName)
+            Button("Cancel", role: .cancel) { newCollectionName = "" }
+            Button("Create") {
+                let name = newCollectionName
+                newCollectionName = ""
+                Task { await model.createCollection(named: name) }
+            }
+        }
+    }
+
+    private var newCollectionChip: some View {
+        Button { showNewCollection = true } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "plus").font(.system(size: 12, weight: .bold))
+                Text("New collection").font(ShareFont.body(15, weight: .medium)).lineLimit(1)
+            }
+            .foregroundColor(ShareColor.textPrimary)
+            .padding(.horizontal, 16).padding(.vertical, 10)
+            .overlay(Capsule().stroke(ShareColor.taupe.opacity(0.5), style: StrokeStyle(lineWidth: 1.5, dash: [4, 3])))
+        }
+        .accessibilityIdentifier("clipNewCollectionChip")
     }
 
     private func chip(_ col: ClipCollection) -> some View {
