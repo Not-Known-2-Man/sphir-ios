@@ -70,10 +70,14 @@ final class NetworkService {
     private let allowsNetwork: Bool
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
+    /// Where `.sphirUnauthorized` is posted; tests pass their own center.
+    private let notificationCenter: NotificationCenter
 
-    init(session: URLSession = .shared, allowsNetwork: Bool = true) {
+    init(session: URLSession = .shared, allowsNetwork: Bool = true,
+         notificationCenter: NotificationCenter = .default) {
         self.session = session
         self.allowsNetwork = allowsNetwork
+        self.notificationCenter = notificationCenter
         decoder = JSONDecoder()
         encoder = JSONEncoder()
     }
@@ -142,7 +146,7 @@ final class NetworkService {
         if http.statusCode == 401 {
             if authorized {
                 KeychainService.clear()
-                NotificationCenter.default.post(name: .sphirUnauthorized, object: nil)
+                notificationCenter.post(name: .sphirUnauthorized, object: nil)
                 throw NetworkError.unauthorized
             } else {
                 throw NetworkError.invalidCredentials
