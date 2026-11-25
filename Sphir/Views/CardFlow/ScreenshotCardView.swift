@@ -22,6 +22,8 @@ struct ScreenshotCardView: View {
     @State private var isProcessing = false
     @State private var isAILoading = false
     @State private var showAILabel = false
+    /// Identifies the latest screenshot, so a late AI answer for an older one is ignored.
+    @State private var aiRequestID = UUID()
     @State private var noTextFound = false
     @State private var showPicker = false
     @State private var showSuccess = false
@@ -158,6 +160,8 @@ struct ScreenshotCardView: View {
         isCropping = false
         isProcessing = true
         showAILabel = false
+        let requestID = UUID()
+        aiRequestID = requestID
         Task {
             let text = await OCRService.recognizeText(in: img)
             let ocrTitle = firstLine(of: text)
@@ -168,15 +172,17 @@ struct ScreenshotCardView: View {
 
             // UITEST runs on mock data: no AI call (S7).
             guard !noTextFound, !ProcessInfo.processInfo.arguments.contains("UITEST") else { return }
-            await enrichWithAI(ocrText: text, ocrTitle: ocrTitle)
+            await enrichWithAI(ocrText: text, ocrTitle: ocrTitle, requestID: requestID)
         }
     }
 
-    private func enrichWithAI(ocrText: String, ocrTitle: String) async {
+    private func enrichWithAI(ocrText: String, ocrTitle: String, requestID: UUID) async {
         isAILoading = true
-        defer { isAILoading = false }
+        defer { if aiRequestID == requestID { isAILoading = false } }
         do {
             let response = try await NetworkService.shared.cardFromText(text: ocrText)
+            // Another screenshot was picked meanwhile: this answer is stale.
+            guard aiRequestID == requestID else { return }
             let merged = ScreenshotAI.merge(
                 currentTitle: title,
                 currentContent: content,
