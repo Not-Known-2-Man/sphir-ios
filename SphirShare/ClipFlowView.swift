@@ -595,10 +595,10 @@ private struct CoverView: View {
             } else if let urlString, let url = URL(string: urlString) {
                 AsyncImage(url: url) { phase in
                     if let image = phase.image { image.resizable().scaledToFill() }
-                    else { placeholder }
+                    else { placeholder(showsLogo: phase.error != nil) }
                 }
             } else {
-                placeholder
+                placeholder()
             }
         }
         .frame(maxWidth: .infinity)
@@ -606,10 +606,19 @@ private struct CoverView: View {
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
-    private var placeholder: some View {
+    /// A link without an image shows the Sphir logo; while an image loads the cover stays plain.
+    private func placeholder(showsLogo: Bool = true) -> some View {
         ZStack {
             ShareColor.background
-            Image(systemName: type.iconName).font(.system(size: 30)).foregroundColor(ShareColor.taupe)
+            if showsLogo {
+                Image("SphirLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: 200)
+                    .padding(.horizontal, 40)
+                    .accessibilityLabel("Sphir")
+                    .accessibilityIdentifier("clipCoverPlaceholderLogo")
+            }
         }
     }
 }

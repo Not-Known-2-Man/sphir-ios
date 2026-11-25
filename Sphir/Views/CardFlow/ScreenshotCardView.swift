@@ -20,6 +20,10 @@ struct ScreenshotCardView: View {
     @State private var title: String = ""
     @State private var content: String = ""
     @State private var isProcessing = false
+    @State private var isAILoading = false
+    @State private var showAILabel = false
+    /// Identifies the latest screenshot, so a late AI answer for an older one is ignored.
+    @State private var aiRequestID = UUID()
     @State private var noTextFound = false
     @State private var showPicker = false
     @State private var showSuccess = false
@@ -55,6 +59,20 @@ struct ScreenshotCardView: View {
                                 if noTextFound {
                                     Text("No text found in this image. You can still add a title and save it.")
                                         .font(SphirFont.body(12))
+                                        .foregroundColor(SphirColor.mutedText)
+                                }
+                                if isAILoading {
+                                    HStack(spacing: 8) {
+                                        ProgressView()
+                                            .controlSize(.small)
+                                            .tint(SphirColor.taupe)
+                                        Text("Sphir AI is reading...")
+                                            .font(SphirFont.body(12, weight: .medium))
+                                            .foregroundColor(SphirColor.mutedText)
+                                    }
+                                } else if showAILabel {
+                                    Label("Filled by AI · edit anything", systemImage: "sparkles")
+                                        .font(SphirFont.body(11, weight: .medium))
                                         .foregroundColor(SphirColor.mutedText)
                                 }
                                 formField(label: "Title") {
@@ -141,12 +159,45 @@ struct ScreenshotCardView: View {
         imageData = downscaledJPEG(img)
         isCropping = false
         isProcessing = true
+        showAILabel = false
+        let requestID = UUID()
+        aiRequestID = requestID
         Task {
             let text = await OCRService.recognizeText(in: img)
+            let ocrTitle = firstLine(of: text)
             content = text
-            title = firstLine(of: text)
+            title = ocrTitle
             noTextFound = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             isProcessing = false
+
+            // UITEST runs on mock data: no AI call (S7).
+            guard !noTextFound, !ProcessInfo.processInfo.arguments.contains("UITEST") else { return }
+            await enrichWithAI(ocrText: text, ocrTitle: ocrTitle, requestID: requestID)
+        }
+    }
+
+    private func enrichWithAI(ocrText: String, ocrTitle: String, requestID: UUID) async {
+        isAILoading = true
+        defer { if aiRequestID == requestID { isAILoading = false } }
+        do {
+            let response = try await NetworkService.shared.cardFromText(text: ocrText)
+            // Another screenshot was picked meanwhile: this answer is stale.
+            guard aiRequestID == requestID else { return }
+            let merged = ScreenshotAI.merge(
+                currentTitle: title,
+                currentContent: content,
+                ocrTitle: ocrTitle,
+                ocrContent: ocrText,
+                currentCollectionID: selectedCollectionID,
+                response: response,
+                collections: appStore.collections
+            )
+            title = merged.title
+            content = merged.content
+            selectedCollectionID = merged.selectedCollectionID
+            showAILabel = merged.showAILabel
+        } catch {
+            // Keep OCR result silently when the AI call fails.
         }
     }
 

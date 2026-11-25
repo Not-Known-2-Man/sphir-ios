@@ -270,18 +270,18 @@ struct CardDetailView: View {
             if let uiImage = UIImage(data: data) {
                 coverFrame(Image(uiImage: uiImage).resizable().scaledToFit())
             } else {
-                coverPlaceholder
+                coverPlaceholder()
             }
         case .remoteURL(let url):
             AsyncImage(url: url) { phase in
                 if let image = phase.image {
                     coverFrame(image.resizable().scaledToFit())
                 } else {
-                    coverPlaceholder
+                    coverPlaceholder(showsLogo: phase.error != nil)
                 }
             }
         case .placeholder:
-            coverPlaceholder
+            coverPlaceholder()
         }
     }
 
@@ -312,14 +312,18 @@ struct CardDetailView: View {
             .accessibilityLabel("Card image")
     }
 
-    private var coverPlaceholder: some View {
+    /// A card without an image shows the Sphir mark; while an image loads the cover stays plain.
+    private func coverPlaceholder(showsLogo: Bool = true) -> some View {
         RoundedRectangle(cornerRadius: 12)
             .fill(SphirColor.cardBackgroundAlt)
             .frame(height: 180)
             .overlay(
-                Image(systemName: "photo")
-                    .font(.system(size: 32))
-                    .foregroundColor(SphirColor.lightTaupe)
+                Image("SphirMark")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 72, height: 72)
+                    .opacity(showsLogo ? 1 : 0)
+                    .accessibilityHidden(true)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
