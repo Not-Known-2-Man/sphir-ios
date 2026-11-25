@@ -166,24 +166,14 @@ struct CardTileView: View {
         switch CardDetailView.coverSource(for: card) {
         case .localData(let data):
             if let uiImage = UIImage(data: data) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(height: 120)
-                    .frame(maxWidth: .infinity)
-                    .clipped()
+                coverFrame(Image(uiImage: uiImage))
             } else {
                 coverPlaceholder
             }
         case .remoteURL(let url):
             AsyncImage(url: url) { phase in
                 if let image = phase.image {
-                    image
-                        .resizable()
-                        .scaledToFill()
-                        .frame(height: 120)
-                        .frame(maxWidth: .infinity)
-                        .clipped()
+                    coverFrame(image)
                 } else {
                     coverPlaceholder
                 }
@@ -191,6 +181,16 @@ struct CardTileView: View {
         case .placeholder:
             coverPlaceholder
         }
+    }
+
+    /// The tile fixes the cover's size and the image fills it as an overlay,
+    /// so a wide image cannot widen the tile past its grid column.
+    private func coverFrame(_ image: Image) -> some View {
+        Color.clear
+            .frame(height: 120)
+            .frame(maxWidth: .infinity)
+            .overlay(image.resizable().scaledToFill())
+            .clipped()
     }
 
     private var coverPlaceholder: some View {
