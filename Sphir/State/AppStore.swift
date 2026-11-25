@@ -10,6 +10,9 @@
 import SwiftUI
 import CoreData
 import Combine
+import os
+
+private let syncLog = Logger(subsystem: "com.Sphir", category: "sync")
 
 @MainActor
 final class AppStore: ObservableObject {
@@ -38,6 +41,8 @@ final class AppStore: ObservableObject {
     private let updateCardAPI: CardUpdater
     private let deleteCardAPI: RemoteDeleter
     private let deleteFolderAPI: RemoteDeleter
+    /// Wait between attempts to delete the server folder of a collection removed mid-create.
+    private let orphanDeleteRetryDelay: Duration
     /// Collection creates still in flight (local id -> resulting folder id), so a
     /// card added meanwhile can wait for its folder. Entries are removed when done.
     private var pendingFolderCreates: [UUID: Task<String?, Never>] = [:]
@@ -63,7 +68,8 @@ final class AppStore: ObservableObject {
             try await CardAPIService.updateCard(serverID: serverID, card: card)
         },
         deleteCardAPI: @escaping RemoteDeleter = { try await CardAPIService.deleteCard(serverID: $0) },
-        deleteFolderAPI: @escaping RemoteDeleter = { try await CollectionAPIService.deleteCollection(serverID: $0) }
+        deleteFolderAPI: @escaping RemoteDeleter = { try await CollectionAPIService.deleteCollection(serverID: $0) },
+        orphanDeleteRetryDelay: Duration = .seconds(2)
     ) {
         self.context = context
         self.createFolder = createFolder
@@ -74,6 +80,7 @@ final class AppStore: ObservableObject {
         self.updateCardAPI = updateCardAPI
         self.deleteCardAPI = deleteCardAPI
         self.deleteFolderAPI = deleteFolderAPI
+        self.orphanDeleteRetryDelay = orphanDeleteRetryDelay
         if seedIfEmpty { seedIfNeeded() }
         importPendingSharedCards()
         reload()
@@ -395,7 +402,7 @@ final class AppStore: ObservableObject {
                 if let serverID = remote.serverID, cdCollection(id: id) == nil {
                     // The collection was deleted while the create was in flight:
                     // remove the folder just created so it is not orphaned.
-                    if hasCredentials() { try? await deleteFolderAPI(serverID) }
+                    if hasCredentials() { await deleteOrphanFolder(serverID) }
                 }
             } catch {
                 // Stays local; a later sync/retry will reconcile it.
@@ -404,6 +411,24 @@ final class AppStore: ObservableObject {
         }
         pendingFolderCreates[id] = task
         return task
+    }
+
+    /// Delete a server folder whose local collection is gone. Tries up to 3 times,
+    /// then logs and gives up (the folder stays on the server).
+    private func deleteOrphanFolder(_ serverID: String) async {
+        let attempts = 3
+        for attempt in 1...attempts {
+            do {
+                try await deleteFolderAPI(serverID)
+                return
+            } catch {
+                if attempt == attempts {
+                    syncLog.error("Orphan folder \(serverID, privacy: .public) not deleted after \(attempts) attempts: \(error.localizedDescription, privacy: .public)")
+                    return
+                }
+                try? await Task.sleep(for: orphanDeleteRetryDelay)
+            }
+        }
     }
 
     // MARK: - Cards API sync
