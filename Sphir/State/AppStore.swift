@@ -270,12 +270,18 @@ final class AppStore: ObservableObject {
         Task { try? await deleteFolderAPI(serverID) }
     }
 
-    /// Cards that exist only on this device (offline or never uploaded).
-    var unsyncedCardCount: Int {
-        fetchCards().filter {
+    /// Cards and collections that exist only on this device (offline or never
+    /// uploaded). Edits and deletes are sent at once and never queued, so there
+    /// is nothing else local-only to lose.
+    var unsyncedItemCount: Int {
+        let cards = fetchCards().filter {
             ($0.value(forKey: "syncStatus") as? String) == SyncStatus.offline.rawValue
                 || ($0.value(forKey: "serverID") as? String) == nil
         }.count
+        let collections = fetchCollections().filter {
+            ($0.value(forKey: "serverID") as? String) == nil
+        }.count
+        return cards + collections
     }
 
     /// Wipes all collections and cards from this store's Core Data context,

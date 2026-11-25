@@ -18,9 +18,10 @@ struct SphirApp: App {
 
     init() {
         let store = AppStore()
-        let auth = AuthSession(wipeLocalData: {
-            store.resetLocalData()
-        })
+        let auth = AuthSession(
+            wipeLocalData: { store.resetLocalData() },
+            unsyncedItemCount: { store.unsyncedItemCount }
+        )
         _appStore = StateObject(wrappedValue: store)
         _session = StateObject(wrappedValue: auth)
     }

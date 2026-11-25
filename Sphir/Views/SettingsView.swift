@@ -14,7 +14,7 @@ struct SettingsView: View {
     @State private var showingDeleteAccountSheet = false
     @State private var showingSignOutConfirmation = false
 
-    private var unsyncedCount: Int { session.isMockSession ? 0 : store.unsyncedCardCount }
+    private var unsyncedCount: Int { session.isMockSession ? 0 : store.unsyncedItemCount }
 
     private var appVersion: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
@@ -175,7 +175,7 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             let n = unsyncedCount
-            Text("You have \(n == 1 ? "1 card" : "\(n) cards") that \(n == 1 ? "is" : "are") not uploaded yet. Signing out deletes \(n == 1 ? "it" : "them") from this device.")
+            Text("You have \(n == 1 ? "1 item" : "\(n) items") (cards or collections) not uploaded yet. Signing out deletes \(n == 1 ? "it" : "them") from this device.")
         }
     }
 

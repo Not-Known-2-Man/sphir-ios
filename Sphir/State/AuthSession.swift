@@ -31,12 +31,16 @@ final class AuthSession: ObservableObject {
     typealias KeychainClearer = () -> Void
     typealias SignInRequest = (_ email: String, _ password: String) async throws -> SignInResponse
     typealias SignOutRequest = () async -> Void
+    typealias CredentialSaver = (SignInResponse) -> Void
 
     private let isMock: Bool
     private let nameKey = "auth.userName"
     private let emailKey = "auth.userEmail"
     private let onboardingKey = "onboarding.hasSeen"
     private let ownerKey = "auth.dataOwner"
+    /// Owner of data from an install that never cached its email: matches no
+    /// account (it has no "@"), so the next sign-in starts clean.
+    private static let unknownOwner = "unknown-owner"
     private let defaults: UserDefaults
 
     private let deleteAccountRequest: DeleteAccountRequest
@@ -44,6 +48,8 @@ final class AuthSession: ObservableObject {
     private let clearKeychain: KeychainClearer
     private let signInRequest: SignInRequest
     private let signOutRequest: SignOutRequest
+    private let saveCredentials: CredentialSaver
+    private let unsyncedItemCount: () -> Int
 
     init(
         isLoggedIn: Bool? = nil,
@@ -66,8 +72,14 @@ final class AuthSession: ObservableObject {
         signOutRequest: @escaping SignOutRequest = {
             await AuthAPIService.signOut()
         },
+        saveCredentials: @escaping CredentialSaver = { response in
+            KeychainService.saveCredentials(accessToken: response.token, uid: response.uid, client: response.client)
+        },
+        unsyncedItemCount: @escaping () -> Int = { 0 },
         defaults: UserDefaults = .standard
     ) {
+        self.saveCredentials = saveCredentials
+        self.unsyncedItemCount = unsyncedItemCount
         self.defaults = defaults
         self.signInRequest = signInRequest
         self.signOutRequest = signOutRequest
@@ -142,15 +154,26 @@ final class AuthSession: ObservableObject {
             .joined(separator: " ")
         userName = name.isEmpty ? Self.name(fromEmail: email) : name
         userEmail = email
-        // Another account's data must be gone before the UI (and sync) can see it.
+        // Another account's data must be gone before the UI (and sync) can see
+        // it, and before the new token is stored: sync runs only with a token.
         let owner = Self.normalized(email)
         if let recorded = defaults.string(forKey: ownerKey), recorded != owner {
             wipeLocalData()
         }
+        saveCredentials(response)
         defaults.set(owner, forKey: ownerKey)
         isLoggedIn = true
         isGuest = false
         cacheProfile()
+    }
+
+    /// Items not uploaded yet that signing in as `email` would delete (another
+    /// account's data). 0 when the same account signs in or no owner is known.
+    func unsyncedItemsLost(signingInAs email: String) -> Int {
+        guard !isMock,
+              let recorded = defaults.string(forKey: ownerKey),
+              recorded != Self.normalized(email) else { return 0 }
+        return unsyncedItemCount()
     }
 
     func signUp(name: String, email: String, password: String) async throws {
@@ -181,23 +204,24 @@ final class AuthSession: ObservableObject {
             await signOutRequest()
         }
         clearSession()
-        defaults.removeObject(forKey: ownerKey)
+        // Wipe first: if the app dies in between, the data keeps its owner.
         if !isMock { wipeLocalData() }
+        defaults.removeObject(forKey: ownerKey)
     }
 
     /// Delete account and all associated data permanently.
     func deleteAccount(password: String) async -> DeleteAccountResult {
         guard !isMock else {
             clearSession()
-            defaults.removeObject(forKey: ownerKey)
             wipeLocalData()
+            defaults.removeObject(forKey: ownerKey)
             return .success
         }
         do {
             try await deleteAccountRequest(password)
             clearSession()
-            defaults.removeObject(forKey: ownerKey)
             wipeLocalData()
+            defaults.removeObject(forKey: ownerKey)
             return .success
         } catch let error as AuthAPIError where error == .incorrectPassword {
             return .incorrectPassword
@@ -225,7 +249,7 @@ final class AuthSession: ObservableObject {
     private func recordOwnerIfMissing() {
         guard isLoggedIn, defaults.string(forKey: ownerKey) == nil else { return }
         let owner = Self.normalized(userEmail)
-        if !owner.isEmpty { defaults.set(owner, forKey: ownerKey) }
+        defaults.set(owner.isEmpty ? Self.unknownOwner : owner, forKey: ownerKey)
     }
 
     /// Internal so tests can drive the 401 path without the global notification.

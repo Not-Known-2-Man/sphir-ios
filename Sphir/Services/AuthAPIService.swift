@@ -2,8 +2,8 @@
 //  AuthAPIService.swift
 //  Sphir
 //
-//  Auth endpoints. Tokens (token + uid) are persisted to the Keychain on
-//  sign-in and cleared on sign-out. Protected requests use:
+//  Auth endpoints. Tokens (token + uid) are persisted to the Keychain by
+//  AuthSession after sign-in and cleared on sign-out. Protected requests use:
 //    Authorization: Bearer <token>
 //    uid: <uid>
 //
@@ -35,6 +35,7 @@ private struct AuthResponse: Decodable {
 struct SignInResponse {
     let token: String
     let uid: String
+    let client: String?
     let firstName: String?
     let lastName: String?
 }
@@ -68,7 +69,7 @@ private struct DeleteAccountRequest: Encodable {
 // MARK: - Service
 
 enum AuthAPIService {
-    /// POST /api/v1/auth/sign_in — saves credentials to the Keychain.
+    /// POST /api/v1/auth/sign_in — returns the credentials; AuthSession stores them.
     @discardableResult
     static func signIn(email: String, password: String) async throws -> SignInResponse {
         let auth: AuthResponse = try await NetworkService.shared.request(
@@ -77,10 +78,12 @@ enum AuthAPIService {
             body: SignInRequest(email: email, password: password),
             authorized: false
         )
-        KeychainService.saveCredentials(accessToken: auth.token, uid: auth.uid, client: auth.client)
+        // The caller stores the credentials (AuthSession.signIn), after it has
+        // wiped another account's local data, so no sync can run in between.
         return SignInResponse(
             token: auth.token,
             uid: auth.uid,
+            client: auth.client,
             firstName: auth.firstName,
             lastName: auth.lastName
         )
