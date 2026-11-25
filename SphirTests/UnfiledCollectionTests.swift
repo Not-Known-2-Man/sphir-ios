@@ -44,7 +44,9 @@ struct UnfiledCollectionTests {
     @Test func syncKeepsTheDefaultFlagAndUpdatesIt() async {
         let store = makeStore(folders: [reading, unfiled])
         await store.syncCollections()
-        #expect(store.collections.map(\.isDefault) == [false, true])
+        // Both rows can share createdAt, so their order is not stable: check by name.
+        let flags = Dictionary(uniqueKeysWithValues: store.collections.map { ($0.name, $0.isDefault) })
+        #expect(flags == ["Reading": false, "Unfiled Cards": true])
         #expect(store.defaultCollection?.name == "Unfiled Cards")
 
         // A second sync (existing local rows) keeps the flag.
