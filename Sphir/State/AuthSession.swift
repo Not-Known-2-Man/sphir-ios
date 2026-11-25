@@ -160,8 +160,10 @@ final class AuthSession: ObservableObject {
         if let recorded = defaults.string(forKey: ownerKey), recorded != owner {
             wipeLocalData()
         }
-        saveCredentials(response)
+        // Owner before token: a crash in between leaves a logged-out device
+        // whose data is already tied to the account that signed in.
         defaults.set(owner, forKey: ownerKey)
+        saveCredentials(response)
         isLoggedIn = true
         isGuest = false
         cacheProfile()

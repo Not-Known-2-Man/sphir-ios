@@ -25,6 +25,7 @@ struct SignOutWipeTests {
         /// Ordered "wipe" / "save" events, to pin wipe-before-credentials.
         var events: [String] = []
         var unsynced = 0
+        var ownerAtSave: [String?] = []
     }
 
     private func makeDefaults() -> (UserDefaults, String) {
@@ -58,7 +59,10 @@ struct SignOutWipeTests {
                 return SignInResponse(token: "t", uid: email, client: nil, firstName: nil, lastName: nil)
             },
             signOutRequest: { probe.signOutCalls += 1 },
-            saveCredentials: { _ in probe.events.append("save") },
+            saveCredentials: { _ in
+                probe.events.append("save")
+                probe.ownerAtSave.append(defaults.string(forKey: "auth.dataOwner"))
+            },
             unsyncedItemCount: { probe.unsynced },
             defaults: defaults
         )
@@ -269,6 +273,20 @@ struct SignOutWipeTests {
         try await session.signIn(email: "b@x.com", password: "pw")
 
         #expect(probe.events == ["wipe", "save"])
+    }
+
+    // A crash after the token is stored must not leave the new account logged
+    // in with the previous owner recorded (its next sign-in would wipe its own data).
+    @Test func ownerIsRecordedBeforeCredentialsAreSaved() async throws {
+        let (defaults, name) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: name) }
+        defaults.set("a@x.com", forKey: ownerKey)
+        let probe = Probe()
+        let session = makeSession(defaults: defaults, probe: probe)
+
+        try await session.signIn(email: "b@x.com", password: "pw")
+
+        #expect(probe.ownerAtSave == ["b@x.com"])
     }
 
     @Test func failedSignInSavesNoCredentials() async {
