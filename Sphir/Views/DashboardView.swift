@@ -210,6 +210,8 @@ struct DashboardView: View {
         } else if let id = cardFlow.pendingCollectionLink, let url = Self.collectionURL(for: id) {
             cardFlow.pendingCollectionLink = nil
             router.handle(url, store: appStore)   // syncs first when the collection is not local yet
+            // A local collection opens at once; sync so the card just clipped shows up in it.
+            Task { await appStore.syncFromAPI() }
         } else {
             Task { await appStore.syncFromAPI() }
         }
