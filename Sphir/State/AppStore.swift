@@ -270,6 +270,14 @@ final class AppStore: ObservableObject {
         Task { try? await deleteFolderAPI(serverID) }
     }
 
+    /// Cards that exist only on this device (offline or never uploaded).
+    var unsyncedCardCount: Int {
+        fetchCards().filter {
+            ($0.value(forKey: "syncStatus") as? String) == SyncStatus.offline.rawValue
+                || ($0.value(forKey: "serverID") as? String) == nil
+        }.count
+    }
+
     /// Wipes all collections and cards from this store's Core Data context,
     /// clears in-flight sync sets, and reloads published projections so in-memory
     /// state is empty.

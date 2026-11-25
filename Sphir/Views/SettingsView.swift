@@ -9,8 +9,12 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject private var session: AuthSession
+    @EnvironmentObject private var store: AppStore
     @Environment(\.dismiss) private var dismiss
     @State private var showingDeleteAccountSheet = false
+    @State private var showingSignOutConfirmation = false
+
+    private var unsyncedCount: Int { session.isMockSession ? 0 : store.unsyncedCardCount }
 
     private var appVersion: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
@@ -147,8 +151,11 @@ struct SettingsView: View {
 
     private var signOutButton: some View {
         Button {
-            Task { await session.signOut() }
-            dismiss()
+            if unsyncedCount > 0 {
+                showingSignOutConfirmation = true
+            } else {
+                performSignOut()
+            }
         } label: {
             Text("Sign Out")
                 .font(SphirFont.body(16, weight: .semibold))
@@ -163,6 +170,18 @@ struct SettingsView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("signOutButton")
+        .alert("Sign out?", isPresented: $showingSignOutConfirmation) {
+            Button("Sign Out", role: .destructive) { performSignOut() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            let n = unsyncedCount
+            Text("You have \(n == 1 ? "1 card" : "\(n) cards") that \(n == 1 ? "is" : "are") not uploaded yet. Signing out deletes \(n == 1 ? "it" : "them") from this device.")
+        }
+    }
+
+    private func performSignOut() {
+        Task { await session.signOut() }
+        dismiss()
     }
 
     private var deleteAccountButton: some View {
@@ -304,4 +323,5 @@ struct DeleteAccountSheet: View {
 #Preview {
     SettingsView()
         .environmentObject(AuthSession())
+        .environmentObject(AppStore())
 }
