@@ -42,6 +42,9 @@ struct Collection: Identifiable, Hashable {
     var createdAt: Date
     /// The folder's id on the backend (nil until synced).
     var serverID: String?
+    /// The user's default "Unfiled Cards" collection (server `is_default`):
+    /// it can't be deleted or renamed, and cards without a collection live in it.
+    var isDefault: Bool
 
     init(
         id: UUID = UUID(),
@@ -50,7 +53,8 @@ struct Collection: Identifiable, Hashable {
         cardCount: Int,
         privacy: CollectionPrivacy = .private,
         createdAt: Date = Date(),
-        serverID: String? = nil
+        serverID: String? = nil,
+        isDefault: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -59,7 +63,11 @@ struct Collection: Identifiable, Hashable {
         self.privacy = privacy
         self.createdAt = createdAt
         self.serverID = serverID
+        self.isDefault = isDefault
     }
+
+    /// False for the default collection: no delete, no rename.
+    var canModify: Bool { !isDefault }
 }
 
 extension Collection {

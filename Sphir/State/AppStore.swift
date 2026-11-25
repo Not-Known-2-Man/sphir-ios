@@ -256,8 +256,27 @@ final class AppStore: ObservableObject {
         return collection
     }
 
-    /// Delete a collection locally, then on the backend.
+    /// Like addCollection, but waits for the folder to exist on the API (when
+    /// signed in and online) so the result carries its server id.
+    func addCollectionAwaitingServer(name: String) async -> Collection {
+        let created = addCollection(name: name, privacy: .private)
+        if let create = pendingFolderCreates[created.id] { _ = await create.value }
+        return collections.first { $0.id == created.id } ?? created
+    }
+
+    /// The user's default "Unfiled Cards" collection, once known.
+    var defaultCollection: Collection? { collections.first { $0.isDefault } }
+
+    /// The API refuses to delete or rename the default collection with a 409.
+    nonisolated static func isDefaultCollectionConflict(_ error: Error) -> Bool {
+        if case NetworkError.server(let status, _) = error { return status == 409 }
+        return false
+    }
+
+    /// Delete a collection locally, then on the backend. The default
+    /// collection can't be deleted.
     func deleteCollection(id: UUID) {
+        guard collections.first(where: { $0.id == id })?.isDefault != true else { return }
         let serverID = collections.first(where: { $0.id == id })?.serverID
         if let object = cdCollection(id: id) {
             detachCards(fromCollection: id, serverID: object.value(forKey: "serverID") as? String)
@@ -267,7 +286,14 @@ final class AppStore: ObservableObject {
             publishCollectionsToSharedInbox()
         }
         guard hasCredentials(), let serverID else { return }
-        Task { try? await deleteFolderAPI(serverID) }
+        Task {
+            do {
+                try await deleteFolderAPI(serverID)
+            } catch where Self.isDefaultCollectionConflict(error) {
+                // The server kept it (it is the default): show the real list again.
+                await syncCollections()
+            } catch {}
+        }
     }
 
     /// Cards and collections that exist only on this device (offline or never
@@ -310,7 +336,7 @@ final class AppStore: ObservableObject {
 
     /// Drop a collection that is about to be deleted from its cards, so none
     /// points at it: each card falls back to its next collection, or to
-    /// Uncategorized when it has none left.
+    /// the default collection (Unfiled Cards) when it has none left.
     private func detachCards(fromCollection id: UUID, serverID: String?) {
         let request = NSFetchRequest<NSManagedObject>(entityName: "CDCard")
         for card in (try? context.fetch(request)) ?? [] {
@@ -319,7 +345,7 @@ final class AppStore: ObservableObject {
             guard (card.value(forKey: "collectionID") as? UUID) == id || remaining != memberships else { continue }
             card.setValue(encodeTags(remaining), forKey: "folderIDsJSON")
             if (card.value(forKey: "collectionID") as? UUID) == id {
-                card.setValue(primaryCollectionID(for: remaining), forKey: "collectionID")
+                card.setValue(primaryCollectionID(for: remaining) ?? defaultCollection?.id, forKey: "collectionID")
             }
         }
     }
@@ -381,6 +407,7 @@ final class AppStore: ObservableObject {
                     existingObject.setValue(collection.name, forKey: "name")
                     existingObject.setValue(collection.description, forKey: "collectionDescription")
                     existingObject.setValue(collection.privacy.rawValue, forKey: "privacy")
+                    existingObject.setValue(collection.isDefault, forKey: "isDefault")
                 } else {
                     insert(collection)
                 }
@@ -726,7 +753,9 @@ final class AppStore: ObservableObject {
         if let id, collections.contains(where: { ($0.value(forKey: "id") as? UUID) == id }) {
             return id
         }
-        return collections.first?.value(forKey: "id") as? UUID
+        // No (or unknown) collection: the default one, else the first.
+        return collections.first { ($0.value(forKey: "isDefault") as? Bool) == true }?.value(forKey: "id") as? UUID
+            ?? collections.first?.value(forKey: "id") as? UUID
     }
 
     private func fetchCollections() -> [NSManagedObject] {
@@ -777,6 +806,7 @@ final class AppStore: ObservableObject {
         object.setValue(collection.privacy.rawValue, forKey: "privacy")
         object.setValue(collection.createdAt, forKey: "createdAt")
         object.setValue(collection.serverID, forKey: "serverID")
+        object.setValue(collection.isDefault, forKey: "isDefault")
     }
 
     private func insert(_ card: Card) {
@@ -831,7 +861,8 @@ final class AppStore: ObservableObject {
                 cardCount: countByCollection[id] ?? 0,
                 privacy: CollectionPrivacy(rawValue: object.value(forKey: "privacy") as? String ?? "") ?? .private,
                 createdAt: object.value(forKey: "createdAt") as? Date ?? Date(),
-                serverID: object.value(forKey: "serverID") as? String
+                serverID: object.value(forKey: "serverID") as? String,
+                isDefault: object.value(forKey: "isDefault") as? Bool ?? false
             )
         }
     }

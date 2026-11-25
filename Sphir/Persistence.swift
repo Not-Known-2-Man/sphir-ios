@@ -92,7 +92,9 @@ final class PersistenceController {
             attribute("collectionDescription", .stringAttributeType),
             attribute("privacy", .stringAttributeType),
             attribute("createdAt", .dateAttributeType),
-            attribute("serverID", .stringAttributeType)
+            attribute("serverID", .stringAttributeType),
+            // Added after v1: optional, so the store migrates automatically (lightweight).
+            attribute("isDefault", .booleanAttributeType)
         ]
 
         let card = NSEntityDescription()

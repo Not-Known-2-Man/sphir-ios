@@ -18,6 +18,23 @@ struct CardFormView: View {
     @State private var tags: String = ""
     @State private var selectedCollectionID: UUID?
     @State private var showSuccess = false
+    @State private var showNewCollection = false
+    @State private var newCollectionName = ""
+
+    /// "New collection": create it locally (pushed by the normal sync), select
+    /// it, and keep every typed field.
+    private func createCollection() {
+        let result = NewCollectionName.resolve(newCollectionName, existing: appStore.collections.map(\.name))
+        newCollectionName = ""
+        switch result {
+        case .invalid:
+            return
+        case .existing(let index):
+            selectedCollectionID = appStore.collections[index].id
+        case .create(let name):
+            selectedCollectionID = appStore.addCollection(name: name, privacy: .private).id
+        }
+    }
 
     private var canSave: Bool {
         !title.isEmpty && selectedCollectionID != nil
@@ -132,6 +149,13 @@ struct CardFormView: View {
                         }
                     }
                 }
+                Divider()
+                Button {
+                    showNewCollection = true
+                } label: {
+                    Label("New collection", systemImage: "plus")
+                }
+                .accessibilityIdentifier("newCollectionMenuItem")
             } label: {
                 HStack {
                     Text(selectedCollection?.name ?? "Select a collection")
@@ -152,6 +176,12 @@ struct CardFormView: View {
                 )
             }
             .accessibilityIdentifier("collectionPicker")
+            .alert("New collection", isPresented: $showNewCollection) {
+                TextField("Collection name", text: $newCollectionName)
+                    .accessibilityIdentifier("newCollectionNameField")
+                Button("Cancel", role: .cancel) { newCollectionName = "" }
+                Button("Create") { createCollection() }
+            }
         }
     }
 

@@ -341,12 +341,6 @@ struct DashboardView: View {
         }
     }
 
-    private var uncategorizedCards: [Card] {
-        appStore.cards
-            .filter { $0.collectionID == nil }
-            .sorted { $0.createdAt > $1.createdAt }
-    }
-
     private var matchingCards: [Card] {
         guard isSearching else { return [] }
         return appStore.cards
@@ -372,10 +366,6 @@ struct DashboardView: View {
                     message: "Tap \"+Collection\" to create your first one."
                 )
             }
-
-            if !isSearching && !uncategorizedCards.isEmpty {
-                uncategorizedSection
-            }
         }
     }
 
@@ -400,21 +390,6 @@ struct DashboardView: View {
                 collectionsGrid
             }
         }
-    }
-
-    private var uncategorizedSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Uncategorized")
-                .font(SphirFont.body(14, weight: .semibold))
-                .foregroundColor(SphirColor.mutedText)
-            ForEach(uncategorizedCards) { card in
-                NavigationLink(value: card) {
-                    CardRowView(card: card)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var collectionsGrid: some View {

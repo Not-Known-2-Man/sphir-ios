@@ -27,6 +27,12 @@ struct FolderDTO: Decodable {
     let name: String?
     let description: String?
     let privacy: String?
+    let isDefault: Bool?
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, description, privacy
+        case isDefault = "is_default"
+    }
 
     func toCollection() -> Collection {
         Collection(
@@ -34,7 +40,8 @@ struct FolderDTO: Decodable {
             description: description ?? "",
             cardCount: 0,
             privacy: CollectionPrivacy(rawValue: privacy ?? "") ?? .private,
-            serverID: id?.value
+            serverID: id?.value,
+            isDefault: isDefault ?? false
         )
     }
 }
