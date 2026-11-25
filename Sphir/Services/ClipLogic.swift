@@ -301,6 +301,21 @@ enum FolderSelection {
     }
 }
 
+/// The collection chips on the preview card: several can be selected, the
+/// first selected one is the primary (the card is created in it).
+enum CollectionSelection {
+    /// Adds `id` at the end, or removes it; the last selected one stays.
+    static func toggle(_ id: String, in selected: [String]) -> [String] {
+        guard let index = selected.firstIndex(of: id) else { return selected + [id] }
+        guard selected.count > 1 else { return selected }
+        var next = selected
+        next.remove(at: index)
+        return next
+    }
+
+    static func primary(of selected: [String]) -> String? { selected.first }
+}
+
 // MARK: - +Card input
 
 enum AddCardInput {

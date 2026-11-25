@@ -39,6 +39,9 @@ final class CardFlowCoordinator: ObservableObject {
     /// "View card" was tapped on the saved screen; the dashboard opens it once
     /// the sheet is gone (id for sphir://card/<id>).
     @Published var pendingCardLink: String?
+    /// "View Collection(s)" was tapped; the dashboard opens it once the sheet
+    /// is gone (id for sphir://collection/<id>: API id or local UUID).
+    @Published var pendingCollectionLink: String?
 
     /// Begin the flow from the dashboard.
     func start() {
@@ -49,6 +52,7 @@ final class CardFlowCoordinator: ObservableObject {
         showScreenshotForm = false
         showPhotoForm = false
         pendingCardLink = nil
+        pendingCollectionLink = nil
         showAdd = true
     }
 
@@ -85,6 +89,12 @@ final class CardFlowCoordinator: ObservableObject {
     /// "View card" on the saved screen: close the flow, then open the card.
     func viewCard(id: String) {
         pendingCardLink = id
+        dismissAll()
+    }
+
+    /// "View Collection(s)" on the saved screen: close the flow, then open it.
+    func viewCollection(id: String) {
+        pendingCollectionLink = id
         dismissAll()
     }
 

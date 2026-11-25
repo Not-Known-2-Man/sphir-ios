@@ -55,7 +55,7 @@ final class ClipScreenshotUITests: XCTestCase {
         shot("2-preview-card")
 
         app.buttons["saveCardButton"].tap()
-        XCTAssertTrue(app.staticTexts["Card Saved!"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Successfully clipped"].waitForExistence(timeout: 10))
         sleep(1)
         shot("3-card-saved")
     }

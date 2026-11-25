@@ -456,8 +456,8 @@ final class SphirUITests: XCTestCase {
         titleField.typeText("Reader Test Card")
         app.buttons["saveCardButton"].tap()
 
-        XCTAssertTrue(app.staticTexts["Card Saved!"].waitForExistence(timeout: 10))
-        app.buttons["Done"].tap()
+        XCTAssertTrue(app.staticTexts["Successfully clipped"].waitForExistence(timeout: 10))
+        app.buttons["Close"].tap()
 
         // Wait for the dashboard to be interactive again (success cover gone),
         // then open the collection (tapping the title text, as other tests do).

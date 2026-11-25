@@ -16,6 +16,7 @@ struct ShareRoot: View {
     let onUpdateCollection: (UUID, UUID?) -> Void
     let onScreenChange: (ExtensionScreen) -> Void
     let onView: (String) -> Void
+    let onViewCollection: (String) -> Void
     let onOpenApp: () -> Void
     let onDismiss: () -> Void
     let onCancel: () -> Void
@@ -27,11 +28,12 @@ struct ShareRoot: View {
          onSave: @escaping (SharePayload) -> UUID,
          onUpdateCollection: @escaping (UUID, UUID?) -> Void,
          onScreenChange: @escaping (ExtensionScreen) -> Void,
-         onView: @escaping (String) -> Void, onOpenApp: @escaping () -> Void,
+         onView: @escaping (String) -> Void, onViewCollection: @escaping (String) -> Void,
+         onOpenApp: @escaping () -> Void,
          onDismiss: @escaping () -> Void, onCancel: @escaping () -> Void) {
         self.content = content; self.collections = collections; self.storedCollections = storedCollections
         self.onSave = onSave; self.onUpdateCollection = onUpdateCollection
-        self.onScreenChange = onScreenChange; self.onView = onView; self.onOpenApp = onOpenApp
+        self.onScreenChange = onScreenChange; self.onView = onView; self.onViewCollection = onViewCollection; self.onOpenApp = onOpenApp
         self.onDismiss = onDismiss; self.onCancel = onCancel
         _model = StateObject(wrappedValue: ClipFlowModel(content: content, sharedCollections: storedCollections, queue: onSave))
     }
@@ -40,6 +42,8 @@ struct ShareRoot: View {
         if content.isLink && !showCropFlow {
             ClipFlowView(model: model, onCrop: { showCropFlow = true },
                          onView: { id in id.map(onView) ?? onOpenApp() },
+                         onViewCollection: onViewCollection,
+                         onClipAnother: onDismiss,
                          onDismiss: onDismiss, onCancel: onCancel)
         } else {
             ShareView(content: content, collections: collections, onSave: onSave,

@@ -207,9 +207,19 @@ struct DashboardView: View {
         if let id = cardFlow.pendingCardLink, let url = Card.deepLinkURL(serverID: id) {
             cardFlow.pendingCardLink = nil
             router.handle(url, store: appStore)   // syncs first when the card is not local yet
+        } else if let id = cardFlow.pendingCollectionLink, let url = Self.collectionURL(for: id) {
+            cardFlow.pendingCollectionLink = nil
+            router.handle(url, store: appStore)   // syncs first when the collection is not local yet
+            // A local collection opens at once; sync so the card just clipped shows up in it.
+            Task { await appStore.syncFromAPI() }
         } else {
             Task { await appStore.syncFromAPI() }
         }
+    }
+
+    /// sphir://collection/<id> for an API id (digits) or a local UUID.
+    private static func collectionURL(for id: String) -> URL? {
+        URL(string: "sphir://collection/\(id)")
     }
 
     private var addCardButton: some View {

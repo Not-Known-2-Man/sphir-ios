@@ -111,7 +111,7 @@ final class AlreadyOnSphirUITests: XCTestCase {
         let save = app.buttons["saveCardButton"]
         XCTAssertTrue(save.isEnabled, "save is disabled")
         save.tap()
-        XCTAssertTrue(app.staticTexts["Card Saved!"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.staticTexts["Successfully clipped"].waitForExistence(timeout: 30))
         shot("2-card-saved")
     }
 
