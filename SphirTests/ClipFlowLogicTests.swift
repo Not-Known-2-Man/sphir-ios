@@ -191,6 +191,24 @@ struct ClipFlowLogicTests {
         #expect(FolderSelection.toggle("1", primary: "1", extras: ["2"]) == ["2"])
     }
 
+    @Test func chipTogglingAddsInOrderAndRemoves() {
+        #expect(CollectionSelection.toggle("2", in: ["1"]) == ["1", "2"])
+        #expect(CollectionSelection.toggle("3", in: ["1", "2"]) == ["1", "2", "3"])
+        #expect(CollectionSelection.toggle("1", in: ["1", "2"]) == ["2"])
+        #expect(CollectionSelection.toggle("2", in: ["1", "2", "3"]) == ["1", "3"])
+    }
+
+    @Test func chipTogglingKeepsTheLastSelectedOne() {
+        #expect(CollectionSelection.toggle("1", in: ["1"]) == ["1"])
+        #expect(CollectionSelection.toggle("1", in: []) == ["1"])
+    }
+
+    @Test func primaryChipIsTheFirstSelected() {
+        #expect(CollectionSelection.primary(of: ["3", "1"]) == "3")
+        #expect(CollectionSelection.primary(of: CollectionSelection.toggle("3", in: ["3", "1"])) == "1")
+        #expect(CollectionSelection.primary(of: []) == nil)
+    }
+
     @Test func preselectsLastUsedCollectionElseFirst() {
         #expect(FolderSelection.preselect(lastUsed: "3", available: ["1", "2", "3"]) == "3")
         #expect(FolderSelection.preselect(lastUsed: "9", available: ["1", "2"]) == "1")

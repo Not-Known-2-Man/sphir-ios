@@ -32,12 +32,40 @@ struct ClipAppFlowTests {
         let id = UUID()
         #expect(DeepLink(url: URL(string: "sphir://card/\(id.uuidString)")!) == .card(id))
         #expect(DeepLink(url: URL(string: "sphir://collection/\(id.uuidString)")!) == .collection(id))
-        #expect(DeepLink(url: URL(string: "sphir://collection/123")!) == nil)
         #expect(DeepLink(url: URL(string: "sphir://card/")!) == nil)
         #expect(DeepLink(url: URL(string: "sphir://card/a%20b")!) == nil)
         #expect(DeepLink(url: URL(string: "sphir://card/not-a-uuid")!) == nil)
         #expect(DeepLink(url: URL(string: "sphir://card/12abc")!) == nil)
         #expect(DeepLink(url: URL(string: "sphir://home")!) == nil)
+    }
+
+    @Test func deepLinkParsesCollectionServerIDs() {
+        #expect(DeepLink(url: URL(string: "sphir://collection/12")!) == .collectionServerID("12"))
+        #expect(DeepLink(url: URL(string: "https://sphir.io/collection/705")!) == .collectionServerID("705"))
+        #expect(DeepLink(url: URL(string: "sphir://collection/12abc")!) == nil)
+        #expect(DeepLink(url: URL(string: "sphir://collection/")!) == nil)
+        #expect(DeepLink(url: URL(string: "sphir://home/12")!) == nil)
+    }
+
+    @Test func deepLinkKeepsExistingFormsWhenCollectionServerIDsExist() {
+        let id = UUID()
+        #expect(DeepLink(url: URL(string: "sphir://collection/\(id.uuidString)")!) == .collection(id))
+        #expect(DeepLink(url: URL(string: "sphir://card/123")!) == .cardServerID("123"))
+        #expect(DeepLink(url: URL(string: "sphir://collection/not-a-uuid")!) == nil)
+    }
+
+    @Test func routerResolvesCollectionByServerIDAndByUUID() {
+        let a = Collection(name: "A", cardCount: 0, serverID: "12")
+        let b = Collection(name: "B", cardCount: 0)
+        let all = [a, b]
+        #expect(NavigationRouter.collection(for: .collectionServerID("12"), in: all)?.id == a.id)
+        #expect(NavigationRouter.collection(for: .collection(b.id), in: all)?.id == b.id)
+        #expect(NavigationRouter.collection(for: .collectionServerID("99"), in: all) == nil)
+        #expect(NavigationRouter.collection(for: .cardServerID("12"), in: all) == nil)
+    }
+
+    @Test func deepLinkCollectionURLByServerID() {
+        #expect(Collection.deepLinkURL(serverID: "12")?.absoluteString == "sphir://collection/12")
     }
 
     @Test func routerResolvesCardByServerIDAndByUUID() {
