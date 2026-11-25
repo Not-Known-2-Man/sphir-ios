@@ -14,6 +14,7 @@ private final class SpyNotificationObserver: @unchecked Sendable {
     private let lock = NSLock()
     private var count = 0
     private var observer: NSObjectProtocol?
+    private let center: NotificationCenter
 
     var wasPosted: Bool {
         lock.lock()
@@ -21,8 +22,9 @@ private final class SpyNotificationObserver: @unchecked Sendable {
         return count > 0
     }
 
-    init(name: Notification.Name) {
-        observer = NotificationCenter.default.addObserver(
+    init(name: Notification.Name, center: NotificationCenter) {
+        self.center = center
+        observer = center.addObserver(
             forName: name,
             object: nil,
             queue: nil
@@ -36,7 +38,7 @@ private final class SpyNotificationObserver: @unchecked Sendable {
 
     func stop() {
         if let observer {
-            NotificationCenter.default.removeObserver(observer)
+            center.removeObserver(observer)
             self.observer = nil
         }
     }
@@ -228,9 +230,11 @@ struct AccountDeletionTests {
     @Test func networkService422DoesNotTrigger401SessionExpiration() async {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [Stub422Protocol.self]
-        let service = NetworkService(session: URLSession(configuration: config))
+        // Private center: a 401 posted by another suite in parallel cannot reach this spy.
+        let center = NotificationCenter()
+        let service = NetworkService(session: URLSession(configuration: config), notificationCenter: center)
 
-        let spy = SpyNotificationObserver(name: .sphirUnauthorized)
+        let spy = SpyNotificationObserver(name: .sphirUnauthorized, center: center)
         defer { spy.stop() }
 
         do {

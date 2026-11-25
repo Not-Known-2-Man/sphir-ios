@@ -31,6 +31,7 @@ private final class NotificationSpy: @unchecked Sendable {
     private let lock = NSLock()
     private var count = 0
     private var observer: NSObjectProtocol?
+    private let center: NotificationCenter
 
     var wasPosted: Bool {
         lock.lock()
@@ -38,8 +39,9 @@ private final class NotificationSpy: @unchecked Sendable {
         return count > 0
     }
 
-    init(name: Notification.Name) {
-        observer = NotificationCenter.default.addObserver(
+    init(name: Notification.Name, center: NotificationCenter) {
+        self.center = center
+        observer = center.addObserver(
             forName: name,
             object: nil,
             queue: nil
@@ -53,7 +55,7 @@ private final class NotificationSpy: @unchecked Sendable {
 
     func stop() {
         if let observer {
-            NotificationCenter.default.removeObserver(observer)
+            center.removeObserver(observer)
             self.observer = nil
         }
     }
@@ -65,15 +67,18 @@ private final class NotificationSpy: @unchecked Sendable {
 
 @Suite(.serialized)
 struct NetworkServiceUnauthorizedTests {
+    /// Private center: other suites running in parallel never see these posts.
+    private let center = NotificationCenter()
+
     private func makeService() -> NetworkService {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [UnauthorizedStubProtocol.self]
-        return NetworkService(session: URLSession(configuration: config))
+        return NetworkService(session: URLSession(configuration: config), notificationCenter: center)
     }
 
     @Test func unauthorizedRequestWithoutAuthThrowsInvalidCredentialsAndDoesNotPostNotification() async {
         let service = makeService()
-        let spy = NotificationSpy(name: .sphirUnauthorized)
+        let spy = NotificationSpy(name: .sphirUnauthorized, center: center)
         defer { spy.stop() }
 
         do {
@@ -88,7 +93,7 @@ struct NetworkServiceUnauthorizedTests {
 
     @Test func unauthorizedRequestWithAuthThrowsUnauthorizedAndPostsNotification() async {
         let service = makeService()
-        let spy = NotificationSpy(name: .sphirUnauthorized)
+        let spy = NotificationSpy(name: .sphirUnauthorized, center: center)
         defer { spy.stop() }
 
         do {
