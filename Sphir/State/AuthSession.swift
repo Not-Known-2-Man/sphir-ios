@@ -29,15 +29,27 @@ final class AuthSession: ObservableObject {
     typealias DeleteAccountRequest = (_ password: String) async throws -> Void
     typealias WipeLocalData = () -> Void
     typealias KeychainClearer = () -> Void
+    typealias SignInRequest = (_ email: String, _ password: String) async throws -> SignInResponse
+    typealias SignOutRequest = () async -> Void
+    typealias CredentialSaver = (SignInResponse) -> Void
 
     private let isMock: Bool
     private let nameKey = "auth.userName"
     private let emailKey = "auth.userEmail"
     private let onboardingKey = "onboarding.hasSeen"
+    private let ownerKey = "auth.dataOwner"
+    /// Owner of data from an install that never cached its email: matches no
+    /// account (it has no "@"), so the next sign-in starts clean.
+    private static let unknownOwner = "unknown-owner"
+    private let defaults: UserDefaults
 
     private let deleteAccountRequest: DeleteAccountRequest
     private let wipeLocalData: WipeLocalData
     private let clearKeychain: KeychainClearer
+    private let signInRequest: SignInRequest
+    private let signOutRequest: SignOutRequest
+    private let saveCredentials: CredentialSaver
+    private let unsyncedItemCount: () -> Int
 
     init(
         isLoggedIn: Bool? = nil,
@@ -53,8 +65,24 @@ final class AuthSession: ObservableObject {
         },
         clearKeychain: @escaping KeychainClearer = {
             KeychainService.clear()
-        }
+        },
+        signInRequest: @escaping SignInRequest = { email, password in
+            try await AuthAPIService.signIn(email: email, password: password)
+        },
+        signOutRequest: @escaping SignOutRequest = {
+            await AuthAPIService.signOut()
+        },
+        saveCredentials: @escaping CredentialSaver = { response in
+            KeychainService.saveCredentials(accessToken: response.token, uid: response.uid, client: response.client)
+        },
+        unsyncedItemCount: @escaping () -> Int = { 0 },
+        defaults: UserDefaults = .standard
     ) {
+        self.saveCredentials = saveCredentials
+        self.unsyncedItemCount = unsyncedItemCount
+        self.defaults = defaults
+        self.signInRequest = signInRequest
+        self.signOutRequest = signOutRequest
         self.deleteAccountRequest = deleteAccountRequest
         self.wipeLocalData = wipeLocalData
         self.clearKeychain = clearKeychain
@@ -62,7 +90,6 @@ final class AuthSession: ObservableObject {
 
         let args = ProcessInfo.processInfo.arguments
         let forceOnboarding = args.contains("SHOW_ONBOARDING")
-        let defaults = UserDefaults.standard
 
         if let explicitMock = isMock {
             self.isMock = explicitMock
@@ -70,6 +97,7 @@ final class AuthSession: ObservableObject {
             self.userName = userName ?? ""
             self.userEmail = userEmail ?? ""
             self.hasSeenOnboarding = !forceOnboarding
+            if !explicitMock { recordOwnerIfMissing() }
             return
         }
 
@@ -96,6 +124,9 @@ final class AuthSession: ObservableObject {
         self.userEmail = userEmail ?? (defaults.string(forKey: emailKey) ?? "")
         self.hasSeenOnboarding = defaults.bool(forKey: onboardingKey)
 
+        // Installs from before owner tracking: the cached account owns the data.
+        recordOwnerIfMissing()
+
         // Sign out if the API rejects the token (401).
         NotificationCenter.default.addObserver(
             forName: .sphirUnauthorized, object: nil, queue: .main
@@ -107,6 +138,9 @@ final class AuthSession: ObservableObject {
     // MARK: - Derived
 
     var displayName: String { userName.isEmpty ? "there" : userName }
+    /// Mock sessions (UI tests) keep their seeded data and skip the sign-out confirmation.
+    var isMockSession: Bool { isMock }
+
     var initial: String { String(displayName.first ?? "S").uppercased() }
 
     // MARK: - Actions
@@ -114,15 +148,34 @@ final class AuthSession: ObservableObject {
     func signIn(email: String, password: String) async throws {
         guard !isMock else { mockSignIn(email: email); return }
 
-        let response = try await AuthAPIService.signIn(email: email, password: password)
+        let response = try await signInRequest(email, password)
         let name = [response.firstName, response.lastName]
             .compactMap { $0 }.filter { !$0.isEmpty }
             .joined(separator: " ")
         userName = name.isEmpty ? Self.name(fromEmail: email) : name
         userEmail = email
+        // Another account's data must be gone before the UI (and sync) can see
+        // it, and before the new token is stored: sync runs only with a token.
+        let owner = Self.normalized(email)
+        if let recorded = defaults.string(forKey: ownerKey), recorded != owner {
+            wipeLocalData()
+        }
+        // Owner before token: a crash in between leaves a logged-out device
+        // whose data is already tied to the account that signed in.
+        defaults.set(owner, forKey: ownerKey)
+        saveCredentials(response)
         isLoggedIn = true
         isGuest = false
         cacheProfile()
+    }
+
+    /// Items not uploaded yet that signing in as `email` would delete (another
+    /// account's data). 0 when the same account signs in or no owner is known.
+    func unsyncedItemsLost(signingInAs email: String) -> Int {
+        guard !isMock,
+              let recorded = defaults.string(forKey: ownerKey),
+              recorded != Self.normalized(email) else { return 0 }
+        return unsyncedItemCount()
     }
 
     func signUp(name: String, email: String, password: String) async throws {
@@ -150,9 +203,12 @@ final class AuthSession: ObservableObject {
 
     func signOut() async {
         if !isMock {
-            await AuthAPIService.signOut()
+            await signOutRequest()
         }
         clearSession()
+        // Wipe first: if the app dies in between, the data keeps its owner.
+        if !isMock { wipeLocalData() }
+        defaults.removeObject(forKey: ownerKey)
     }
 
     /// Delete account and all associated data permanently.
@@ -160,12 +216,14 @@ final class AuthSession: ObservableObject {
         guard !isMock else {
             clearSession()
             wipeLocalData()
+            defaults.removeObject(forKey: ownerKey)
             return .success
         }
         do {
             try await deleteAccountRequest(password)
             clearSession()
             wipeLocalData()
+            defaults.removeObject(forKey: ownerKey)
             return .success
         } catch let error as AuthAPIError where error == .incorrectPassword {
             return .incorrectPassword
@@ -179,18 +237,25 @@ final class AuthSession: ObservableObject {
     /// Mark onboarding complete (after the user taps "Get Started").
     func completeOnboarding() {
         hasSeenOnboarding = true
-        UserDefaults.standard.set(true, forKey: onboardingKey)
+        defaults.set(true, forKey: onboardingKey)
     }
 
     /// Debug helper to replay the onboarding flow without reinstalling.
     func resetOnboarding() {
         hasSeenOnboarding = false
-        UserDefaults.standard.removeObject(forKey: onboardingKey)
+        defaults.removeObject(forKey: onboardingKey)
     }
 
     // MARK: - Private
 
-    private func handleUnauthorized() {
+    private func recordOwnerIfMissing() {
+        guard isLoggedIn, defaults.string(forKey: ownerKey) == nil else { return }
+        let owner = Self.normalized(userEmail)
+        defaults.set(owner.isEmpty ? Self.unknownOwner : owner, forKey: ownerKey)
+    }
+
+    /// Internal so tests can drive the 401 path without the global notification.
+    func handleUnauthorized() {
         guard isLoggedIn else { return }
         clearSession()   // Keychain already cleared by NetworkService.
     }
@@ -201,13 +266,11 @@ final class AuthSession: ObservableObject {
         userName = ""
         userEmail = ""
         clearKeychain()
-        let defaults = UserDefaults.standard
         defaults.removeObject(forKey: nameKey)
         defaults.removeObject(forKey: emailKey)
     }
 
     private func cacheProfile() {
-        let defaults = UserDefaults.standard
         defaults.set(userName, forKey: nameKey)
         defaults.set(userEmail, forKey: emailKey)
     }
@@ -215,7 +278,7 @@ final class AuthSession: ObservableObject {
     // MARK: - Mock (UITEST)
 
     private func mockSignIn(email: String) {
-        let stored = UserDefaults.standard.string(forKey: nameKey)
+        let stored = defaults.string(forKey: nameKey)
         userEmail = email
         userName = (stored?.isEmpty == false) ? stored! : Self.name(fromEmail: email)
         isLoggedIn = true
@@ -235,6 +298,10 @@ final class AuthSession: ObservableObject {
         let parts = name.trimmingCharacters(in: .whitespacesAndNewlines)
             .split(separator: " ", maxSplits: 1).map(String.init)
         return (parts.first ?? "", parts.count > 1 ? parts[1] : "")
+    }
+
+    private static func normalized(_ email: String) -> String {
+        email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
     private static func name(fromEmail email: String) -> String {

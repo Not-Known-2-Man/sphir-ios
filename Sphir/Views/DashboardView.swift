@@ -95,6 +95,7 @@ struct DashboardView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
                 .environmentObject(session)
+                .environmentObject(appStore)
         }
         // Notifications.
         .sheet(isPresented: $showNotifications) {

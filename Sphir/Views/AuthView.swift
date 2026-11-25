@@ -21,6 +21,9 @@ struct AuthView: View {
     @State private var isSubmitting = false
     @State private var isGuestLoading = false
     @State private var authError: String?
+    /// Unsynced items of another account that this sign-in would delete.
+    @State private var itemsToLose = 0
+    @State private var showingSwitchAccount = false
 
     private var isSignUp: Bool { mode == .signUp }
 
@@ -73,6 +76,18 @@ struct AuthView: View {
         } message: {
             Text(authError ?? "")
         }
+        .alert(
+            "Sign in as a different account?",
+            isPresented: $showingSwitchAccount
+        ) {
+            Button("Sign In", role: .destructive) {
+                Task { await performAuth(confirmed: true) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            let n = itemsToLose
+            Text("This device has \(n == 1 ? "1 item" : "\(n) items") from another account that \(n == 1 ? "was" : "were") not uploaded. Signing in deletes \(n == 1 ? "it" : "them").")
+        }
     }
 
     // MARK: - Actions
@@ -99,11 +114,15 @@ struct AuthView: View {
         }
     }
 
-    private func performAuth() async {
+    private func performAuth(confirmed: Bool = false) async {
+        let cleanEmail = email.trimmingCharacters(in: .whitespaces)
+        if !confirmed {
+            let lost = session.unsyncedItemsLost(signingInAs: cleanEmail)
+            if lost > 0 { itemsToLose = lost; showingSwitchAccount = true; return }
+        }
+
         isSubmitting = true
         defer { isSubmitting = false }
-
-        let cleanEmail = email.trimmingCharacters(in: .whitespaces)
         do {
             switch mode {
             case .signIn:
