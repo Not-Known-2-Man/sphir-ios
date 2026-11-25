@@ -56,6 +56,17 @@ private final class FakeAPI {
     var updatedCards: [String] = []      // "serverID:title"
     var deletedCards: [String] = []
     var deletedFolders: [String] = []
+    var folderDeleteAttempts = 0
+    var failFolderDeletes = 0          // the next N folder deletes throw
+
+    func deleteFolder(_ serverID: String) throws {
+        folderDeleteAttempts += 1
+        if failFolderDeletes > 0 {
+            failFolderDeletes -= 1
+            throw URLError(.timedOut)
+        }
+        deletedFolders.append(serverID)
+    }
 
     func releaseFolder() { folderGate?.resume() }
     func releaseCard() { cardGate?.resume() }
@@ -79,7 +90,8 @@ struct ConcurrentSyncTests {
             fetchCards: { throw URLError(.notConnectedToInternet) },
             updateCardAPI: { id, card in api.updatedCards.append("\(id):\(card.title)") },
             deleteCardAPI: { api.deletedCards.append($0) },
-            deleteFolderAPI: { api.deletedFolders.append($0) }
+            deleteFolderAPI: { try api.deleteFolder($0) },
+            orphanDeleteRetryDelay: .milliseconds(1)
         )
     }
 
@@ -291,6 +303,34 @@ struct ConcurrentSyncTests {
         #expect(await waitUntil { api.deletedFolders == ["F1"] })
         await settle()
         #expect(api.deletedFolders == ["F1"])        // exactly once
+    }
+
+    @Test func orphanFolderDeleteIsRetriedAfterAFailure() async {
+        api.holdNextFolder = true
+        api.failFolderDeletes = 2
+        let collection = store.addCollection(name: "Trip", privacy: .private)
+        #expect(await waitUntil { api.folderIsHeld })
+        store.deleteCollection(id: collection.id)
+        api.releaseFolder()
+
+        #expect(await waitUntil { api.deletedFolders == ["F1"] })
+        await settle()
+        #expect(api.folderDeleteAttempts == 3)
+        #expect(api.deletedFolders == ["F1"])
+    }
+
+    @Test func orphanFolderDeleteGivesUpAfterThreeAttempts() async {
+        api.holdNextFolder = true
+        api.failFolderDeletes = 10
+        let collection = store.addCollection(name: "Trip", privacy: .private)
+        #expect(await waitUntil { api.folderIsHeld })
+        store.deleteCollection(id: collection.id)
+        api.releaseFolder()
+
+        #expect(await waitUntil { api.folderDeleteAttempts == 3 })
+        await settle()
+        #expect(api.folderDeleteAttempts == 3)
+        #expect(api.deletedFolders.isEmpty)
     }
 
     @Test func folderOfAKeptCollectionIsNotDeleted() async {
