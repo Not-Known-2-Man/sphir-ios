@@ -50,6 +50,7 @@ struct CollectionCardView: View {
 
     private var coverView: some View {
         coverContent
+            .onChange(of: covers) { _, _ in failedCovers = [] }
             .frame(height: 120)
             .frame(maxWidth: .infinity)
             .clipped()
@@ -59,9 +60,16 @@ struct CollectionCardView: View {
             }
     }
 
+    /// Indexes of the covers whose image could not be shown.
+    @State private var failedCovers: Set<Int> = []
+
     @ViewBuilder
     private var coverContent: some View {
-        if covers.count >= 3 {
+        // The mosaic shows three covers; with fewer, only the first is shown.
+        if covers.isEmpty || failedCovers.count >= (covers.count >= 3 ? 3 : 1) {
+            // No image, or none of them loaded: one centered Sphir mark.
+            emptyCover()
+        } else if covers.count >= 3 {
             GeometryReader { proxy in
                 let gap: CGFloat = 2
                 let totalWidth = proxy.size.width
@@ -70,53 +78,61 @@ struct CollectionCardView: View {
                 let rightHeight = max(0, (proxy.size.height - gap) / 2)
 
                 HStack(spacing: gap) {
-                    coverPiece(for: covers[0])
+                    coverPiece(at: 0)
                         .frame(width: leftWidth, height: proxy.size.height)
                         .clipped()
 
                     VStack(spacing: gap) {
-                        coverPiece(for: covers[1])
+                        coverPiece(at: 1)
                             .frame(width: rightWidth, height: rightHeight)
                             .clipped()
 
-                        coverPiece(for: covers[2])
+                        coverPiece(at: 2)
                             .frame(width: rightWidth, height: rightHeight)
                             .clipped()
                     }
                     .frame(width: rightWidth, height: proxy.size.height)
                 }
             }
-        } else if let first = covers.first {
-            coverPiece(for: first)
+        } else {
+            coverPiece(at: 0)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
-        } else {
-            Rectangle()
-                .fill(SphirColor.cardBackgroundAlt)
-                .overlay(
-                    Circle()
-                        .fill(SphirColor.taupe)
-                        .frame(width: 60, height: 60)
-                        .overlay(
-                            Image(systemName: "square.stack.fill")
-                                .font(.system(size: 24))
-                                .foregroundColor(.white)
-                        )
-                )
         }
     }
 
+    /// A collection without images shows the Sphir mark.
+    private func emptyCover() -> some View {
+        Rectangle()
+            .fill(SphirColor.cardBackgroundAlt)
+            .overlay(
+                Image("SphirMark")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: 60, maxHeight: 60)
+                    .padding(8)
+                    .accessibilityHidden(true)
+            )
+    }
+
+    /// A plain tile; a broken image marks its cover as failed so that when
+    /// every cover fails the collection shows the Sphir mark instead.
+    private func failedPiece(_ index: Int) -> some View {
+        Rectangle()
+            .fill(SphirColor.cardBackgroundAlt)
+            .onAppear { failedCovers.insert(index) }
+    }
+
     @ViewBuilder
-    private func coverPiece(for source: CoverSource) -> some View {
-        switch source {
+    private func coverPiece(at index: Int) -> some View {
+        switch covers[index] {
         case .localData(let data):
             if let uiImage = UIImage(data: data) {
                 Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFill()
             } else {
-                Rectangle()
-                    .fill(SphirColor.cardBackgroundAlt)
+                failedPiece(index)
             }
         case .remoteURL(let url):
             AsyncImage(url: url) { phase in
@@ -124,14 +140,14 @@ struct CollectionCardView: View {
                     image
                         .resizable()
                         .scaledToFill()
+                } else if phase.error != nil {
+                    failedPiece(index)
                 } else {
-                    Rectangle()
-                        .fill(SphirColor.cardBackgroundAlt)
+                    Rectangle().fill(SphirColor.cardBackgroundAlt)
                 }
             }
         case .placeholder:
-            Rectangle()
-                .fill(SphirColor.cardBackgroundAlt)
+            failedPiece(index)
         }
     }
 }

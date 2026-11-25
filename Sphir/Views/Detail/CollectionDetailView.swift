@@ -168,18 +168,18 @@ struct CardTileView: View {
             if let uiImage = UIImage(data: data) {
                 coverFrame(Image(uiImage: uiImage))
             } else {
-                coverPlaceholder
+                coverPlaceholder()
             }
         case .remoteURL(let url):
             AsyncImage(url: url) { phase in
                 if let image = phase.image {
                     coverFrame(image)
                 } else {
-                    coverPlaceholder
+                    coverPlaceholder(showsLogo: phase.error != nil)
                 }
             }
         case .placeholder:
-            coverPlaceholder
+            coverPlaceholder()
         }
     }
 
@@ -193,15 +193,19 @@ struct CardTileView: View {
             .clipped()
     }
 
-    private var coverPlaceholder: some View {
+    /// A card without an image shows the Sphir mark; while an image loads the cover stays plain.
+    private func coverPlaceholder(showsLogo: Bool = true) -> some View {
         Rectangle()
             .fill(SphirColor.cardBackgroundAlt)
             .frame(height: 120)
             .frame(maxWidth: .infinity)
             .overlay(
-                Image(systemName: card.cardType.iconName)
-                    .font(.system(size: 24))
-                    .foregroundColor(SphirColor.lightTaupe)
+                Image("SphirMark")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 48, height: 48)
+                    .opacity(showsLogo ? 1 : 0)
+                    .accessibilityHidden(true)
             )
     }
 }
