@@ -175,6 +175,8 @@ private struct ClipScreen: View {
             onView: { id in
                 if let id { flow.viewCard(id: id) } else { flow.dismissAll() }
             },
+            onViewCollection: { flow.viewCollection(id: $0) },
+            onClipAnother: { flow.addAnother() },
             onDismiss: { flow.dismissAll() },
             onCancel: { flow.clipLink = nil }
         )

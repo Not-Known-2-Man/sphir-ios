@@ -66,6 +66,9 @@ final class ShareViewController: UIViewController {
             onView: { [weak self] cardID in
                 self?.openCard(cardID)
             },
+            onViewCollection: { [weak self] collectionID in
+                self?.openCollection(collectionID)
+            },
             onOpenApp: { [weak self] in
                 self?.openApp()
             },
@@ -211,6 +214,12 @@ final class ShareViewController: UIViewController {
     /// online save, else the queued card's local id), then finish.
     private func openCard(_ id: String) {
         guard let url = URL(string: "sphir://card/\(id)") else { return finish() }
+        openInApp(url)
+    }
+
+    /// Open the primary collection in the app (API id, else the local id).
+    private func openCollection(_ id: String) {
+        guard let url = URL(string: "sphir://collection/\(id)") else { return finish() }
         openInApp(url)
     }
 

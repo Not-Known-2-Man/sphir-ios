@@ -94,10 +94,10 @@ final class DemoRecordingUITests: XCTestCase {
         pause(2.5)
 
         tap(app.buttons["saveCardButton"])
-        XCTAssertTrue(app.staticTexts["Card Saved!"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.staticTexts["Successfully clipped"].waitForExistence(timeout: 20))
         pause(2)
-        tap(app.buttons["Done"])
-        XCTAssertTrue(app.staticTexts["Card Saved!"].waitForNonExistence(timeout: 15))
+        tap(app.buttons["Close"])
+        XCTAssertTrue(app.staticTexts["Successfully clipped"].waitForNonExistence(timeout: 15))
         pause()
     }
 

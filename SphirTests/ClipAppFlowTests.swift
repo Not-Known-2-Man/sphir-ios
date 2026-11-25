@@ -344,6 +344,29 @@ struct ClipAppFlowTests {
     }
 
     @MainActor
+    @Test func viewCollectionFromTheClipClosesTheFlowAndRoutes() {
+        let flow = CardFlowCoordinator()
+        flow.start()
+        flow.openLink("apple.com")
+        flow.viewCollection(id: "12")
+        #expect(flow.pendingCollectionLink == "12")
+        #expect(flow.pendingCardLink == nil)
+        #expect(!flow.showAdd)
+        flow.start()
+        #expect(flow.pendingCollectionLink == nil)
+    }
+
+    @MainActor
+    @Test func clipAnotherGoesBackToTheAddCardScreen() {
+        let flow = CardFlowCoordinator()
+        flow.start()
+        flow.openLink("apple.com")
+        flow.addAnother()
+        #expect(flow.clipLink == nil)
+        #expect(flow.showAdd)
+    }
+
+    @MainActor
     @Test func ownCardIsSavedAsOriginalScribe() {
         let store = makeStore()
         let collection = store.addCollection(name: "Notes", privacy: .private)
