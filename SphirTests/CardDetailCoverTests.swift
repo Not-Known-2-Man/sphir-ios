@@ -116,7 +116,7 @@ struct CardDetailCoverTests {
             createdAt: Date(timeIntervalSince1970: 1_710_000_000)
         )
         let safariFooter = CardDetailView.footerText(for: safariCard)
-        #expect(safariFooter.starts(with: "Safari · Added"))
+        #expect(safariFooter.starts(with: "Saved from Safari · "))
 
         let photosCard = Card(
             title: "Photo",
@@ -124,6 +124,41 @@ struct CardDetailCoverTests {
             createdAt: Date(timeIntervalSince1970: 1_710_000_000)
         )
         let photosFooter = CardDetailView.footerText(for: photosCard)
-        #expect(photosFooter.starts(with: "Photos · Added"))
+        #expect(photosFooter.starts(with: "Saved from Photos · "))
+    }
+
+    // MARK: card-detail-info (S5-S7)
+
+    @Test func sourceRowShowsSiteAndDomain() {
+        let card = Card(title: "t", content: "https://www.theverge.com/a", site: "The Verge")
+        #expect(CardDetailView.sourceRowText(for: card) == "The Verge · theverge.com")
+    }
+
+    @Test func sourceRowFallsBackToDomainWhenSiteMissingOrEqual() {
+        let none = Card(title: "t", content: "https://www.theverge.com/a")
+        #expect(CardDetailView.sourceRowText(for: none) == "theverge.com")
+        let same = Card(title: "t", content: "https://theverge.com/a", site: "WWW.TheVerge.com")
+        #expect(CardDetailView.sourceRowText(for: same) == "theverge.com")
+    }
+
+    @Test func sourceRowIsNilWithoutLink() {
+        #expect(CardDetailView.sourceRowText(for: Card(title: "t", content: "just a note", site: "X")) == nil)
+    }
+
+    @Test func publishedTextFormatsValidDatesOnly() {
+        #expect(CardDetailView.publishedText("2024-03-05") == "Published Mar 5, 2024")
+        #expect(CardDetailView.publishedText("") == nil)
+        #expect(CardDetailView.publishedText("2024-13-45") == nil)
+        #expect(CardDetailView.publishedText("garbage") == nil)
+    }
+
+    @Test func collectionsForCardIncludesPrimaryAndFolders() {
+        let a = Collection(name: "A", cardCount: 0, serverID: "fa")
+        let b = Collection(name: "B", cardCount: 0, serverID: "fb")
+        let c = Collection(name: "C", cardCount: 0, serverID: "fc")
+        let card = Card(title: "t", collectionID: a.id, folderServerIDs: ["fa", "fc"])
+        #expect(CardDetailView.collections(for: card, in: [a, b, c]).map(\.name) == ["A", "C"])
+        let loose = Card(title: "t")
+        #expect(CardDetailView.collections(for: loose, in: [a, b, c]).isEmpty)
     }
 }

@@ -115,6 +115,8 @@ final class PersistenceController {
             attribute("collectionID", .UUIDAttributeType),
             attribute("serverID", .stringAttributeType),
             attribute("price", .stringAttributeType),
+            attribute("site", .stringAttributeType),
+            attribute("published", .stringAttributeType),
             attribute("folderIDsJSON", .stringAttributeType)
         ]
 

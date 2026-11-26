@@ -33,6 +33,8 @@ struct SharePayload {
     /// Set by the clip flow so a queued clip keeps what the preview showed.
     var cardTypeRaw: String? = nil
     var price: String? = nil
+    var site: String? = nil
+    var published: String? = nil
     var imageURL: String? = nil
 }
 
@@ -142,14 +144,17 @@ struct ClipDraft: Equatable {
     func card(collectionID: UUID? = nil) -> Card {
         Card(title: title.isEmpty ? (site.isEmpty ? "Untitled" : site) : title,
              description: description, content: url, cardType: type, sourceApp: .safari,
-             imageURL: imageURL, price: price, tags: tags, collectionID: collectionID)
+             imageURL: imageURL, price: price, site: site, published: published,
+             tags: tags, collectionID: collectionID)
     }
 
     /// What goes to the offline queue when the card cannot be created online.
     func payload(collectionID: UUID?, imageData: Data?) -> SharePayload {
         SharePayload(collectionID: collectionID, title: card().title, description: description,
                      urlString: url, bodyText: nil, imageData: imageData, tags: tags,
-                     cardTypeRaw: type.rawValue, price: price.isEmpty ? nil : price, imageURL: imageURL)
+                     cardTypeRaw: type.rawValue, price: price.isEmpty ? nil : price,
+                     site: site.isEmpty ? nil : site,
+                     published: published.isEmpty ? nil : published, imageURL: imageURL)
     }
 
     func request(folderServerID: String?) -> BusinessRequest {
@@ -201,7 +206,7 @@ struct ClipDraft: Equatable {
         return Array(out.prefix(8))
     }
 
-    private static func displayDate(_ iso: String) -> String {
+    static func displayDate(_ iso: String, format: String = "MMMM d, yyyy") -> String {
         let input = DateFormatter()
         input.locale = Locale(identifier: "en_US_POSIX")
         input.timeZone = TimeZone(identifier: "UTC")
@@ -210,7 +215,7 @@ struct ClipDraft: Equatable {
         let output = DateFormatter()
         output.locale = Locale(identifier: "en_US_POSIX")
         output.timeZone = TimeZone(identifier: "UTC")
-        output.dateFormat = "MMMM d, yyyy"
+        output.dateFormat = format
         return output.string(from: date)
     }
 }

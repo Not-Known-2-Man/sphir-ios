@@ -50,6 +50,9 @@ struct SharedCardDTO: Codable, Identifiable, Hashable {
     let cardTypeRaw: String?
     /// Display price of a queued clip (e.g. "$29.99").
     let price: String?
+    /// Site name and publication date (YYYY-MM-DD) of a queued clip.
+    let site: String?
+    let published: String?
     /// Cover image URL of a queued clip.
     let imageURL: String?
 
@@ -66,6 +69,8 @@ struct SharedCardDTO: Codable, Identifiable, Hashable {
         tags: [String]? = nil,
         cardTypeRaw: String? = nil,
         price: String? = nil,
+        site: String? = nil,
+        published: String? = nil,
         imageURL: String? = nil
     ) {
         self.id = id
@@ -80,6 +85,8 @@ struct SharedCardDTO: Codable, Identifiable, Hashable {
         self.tags = tags
         self.cardTypeRaw = cardTypeRaw
         self.price = price
+        self.site = site
+        self.published = published
         self.imageURL = imageURL
     }
 }
@@ -145,6 +152,8 @@ enum SharedInbox {
                 tags: old.tags,
                 cardTypeRaw: old.cardTypeRaw,
                 price: old.price,
+                site: old.site,
+                published: old.published,
                 imageURL: old.imageURL
             )
             pending[idx] = updated

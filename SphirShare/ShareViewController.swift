@@ -204,6 +204,8 @@ final class ShareViewController: UIViewController {
             tags: payload.tags,
             cardTypeRaw: payload.cardTypeRaw,
             price: payload.price,
+            site: payload.site,
+            published: payload.published,
             imageURL: payload.imageURL
         )
         SharedInbox.enqueueCard(card)
