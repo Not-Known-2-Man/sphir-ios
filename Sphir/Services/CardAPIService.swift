@@ -50,12 +50,15 @@ struct BusinessDTO: Decodable {
     let imageURL: String?
     /// Display price (e.g. "$29.99"); "" when the API has none.
     let price: String
+    /// Site name and publication date (YYYY-MM-DD); "" when the API has none.
+    let site: String
+    let published: String
     /// Every collection of the card, primary first (`folder_ids`, S8/T2);
     /// falls back to the single `folder_id` for older APIs.
     let folderServerIDs: [String]
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, description, website, email, tags, price
+        case id, title, description, website, email, tags, price, site, published
         case folderID = "folder_id"
         case folderIDs = "folder_ids"
         case ogImage = "og_image"
@@ -72,6 +75,8 @@ struct BusinessDTO: Decodable {
         let og = (try? c.decode(String.self, forKey: .ogImage)) ?? ""
         imageURL = og.isEmpty ? nil : og
         price = (try? c.decode(String.self, forKey: .price)) ?? ""
+        site = (try? c.decode(String.self, forKey: .site)) ?? ""
+        published = (try? c.decode(String.self, forKey: .published)) ?? ""
         if let ids = try? c.decode([FlexibleID].self, forKey: .folderIDs) {
             folderServerIDs = ids.map(\.value).filter { !$0.isEmpty }
         } else {
@@ -101,6 +106,8 @@ struct BusinessDTO: Decodable {
             sourceApp: .safari,
             imageURL: imageURL,
             price: price,
+            site: site,
+            published: published,
             tags: visibleTags,
             syncStatus: .synced,
             serverID: serverID,
@@ -126,9 +133,12 @@ struct BusinessRequest: Encodable {
     let folderID: String?
     let ogImage: String?
     let price: String?
+    /// nil when empty so an update never clears what the server already has.
+    let site: String?
+    let published: String?
 
     enum CodingKeys: String, CodingKey {
-        case title, description, website, email, tags, price
+        case title, description, website, email, tags, price, site, published
         case folderID = "folder_id"
         case ogImage = "og_image"
     }
@@ -139,6 +149,8 @@ struct BusinessRequest: Encodable {
     init(card: Card, folderServerID: String? = nil, price: String? = nil, imageChange: CardImageChange? = nil) {
         let own = card.price.isEmpty ? nil : card.price
         self.price = price ?? own
+        site = card.site.isEmpty ? nil : card.site
+        published = card.published.isEmpty ? nil : card.published
         title = card.title
         description = card.description
         website = card.content

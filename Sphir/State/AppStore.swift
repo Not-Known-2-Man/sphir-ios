@@ -173,7 +173,7 @@ final class AppStore: ObservableObject {
             urlString: payload.urlString ?? "", bodyText: payload.bodyText ?? "",
             imageData: payload.imageData, collectionID: payload.collectionID, createdAt: Date(),
             tags: payload.tags, cardTypeRaw: payload.cardTypeRaw, price: payload.price,
-            imageURL: payload.imageURL)
+            site: payload.site, published: payload.published, imageURL: payload.imageURL)
         let card = Self.card(fromShared: dto, collectionID: resolveCollectionID(payload.collectionID))
         insert(card)
         save()
@@ -665,6 +665,8 @@ final class AppStore: ObservableObject {
             imageURL: dto.imageURL,
             imageData: dto.imageData,
             price: dto.price ?? "",
+            site: dto.site ?? "",
+            published: dto.published ?? "",
             tags: dto.tags ?? [],
             collectionID: collectionID
         )
@@ -728,6 +730,8 @@ final class AppStore: ObservableObject {
                 existingObject.setValue(dto.website, forKey: "content")
                 existingObject.setValue(encodeTags(dto.tags), forKey: "tagsJSON")
                 existingObject.setValue(dto.price, forKey: "price")
+                existingObject.setValue(dto.site, forKey: "site")
+                existingObject.setValue(dto.published, forKey: "published")
                 existingObject.setValue(encodeTags(dto.folderServerIDs), forKey: "folderIDsJSON")
                 existingObject.setValue(dto.imageURL, forKey: "imageURL")
                 
@@ -842,6 +846,8 @@ final class AppStore: ObservableObject {
         object.setValue(card.collectionID, forKey: "collectionID")
         object.setValue(card.serverID, forKey: "serverID")
         object.setValue(card.price, forKey: "price")
+        object.setValue(card.site, forKey: "site")
+        object.setValue(card.published, forKey: "published")
         object.setValue(encodeTags(card.folderServerIDs), forKey: "folderIDsJSON")
     }
 
@@ -895,6 +901,8 @@ final class AppStore: ObservableObject {
             imageURL: object.value(forKey: "imageURL") as? String,
             imageData: object.value(forKey: "imageData") as? Data,
             price: object.value(forKey: "price") as? String ?? "",
+            site: object.value(forKey: "site") as? String ?? "",
+            published: object.value(forKey: "published") as? String ?? "",
             tags: decodeTags(object.value(forKey: "tagsJSON") as? String),
             syncStatus: SyncStatus(rawValue: object.value(forKey: "syncStatus") as? String ?? "") ?? .synced,
             createdAt: object.value(forKey: "createdAt") as? Date ?? Date(),

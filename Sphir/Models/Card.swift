@@ -38,6 +38,10 @@ struct Card: Identifiable, Hashable {
     var imageData: Data?
     /// Display price ("$29.99") when the clip is a product; "" otherwise.
     var price: String
+    /// Site name of the source page ("The Verge"); "" when unknown.
+    var site: String
+    /// Publication date as YYYY-MM-DD; "" when unknown.
+    var published: String
     var tags: [String]
     var syncStatus: SyncStatus
     var createdAt: Date
@@ -59,6 +63,8 @@ struct Card: Identifiable, Hashable {
         imageURL: String? = nil,
         imageData: Data? = nil,
         price: String = "",
+        site: String = "",
+        published: String = "",
         tags: [String] = [],
         syncStatus: SyncStatus = .synced,
         createdAt: Date = Date(),
@@ -75,6 +81,8 @@ struct Card: Identifiable, Hashable {
         self.imageURL = imageURL
         self.imageData = imageData
         self.price = price
+        self.site = site
+        self.published = published
         self.tags = tags
         self.syncStatus = syncStatus
         self.createdAt = createdAt
@@ -211,6 +219,8 @@ extension Card {
                     imageURL: card.imageURL,
                     imageData: card.imageData,
                     price: card.price,
+                    site: card.site,
+                    published: card.published,
                     tags: card.tags,
                     syncStatus: card.syncStatus,
                     createdAt: card.createdAt,
