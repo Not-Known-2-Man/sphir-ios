@@ -206,7 +206,7 @@ struct ClipDraft: Equatable {
         return Array(out.prefix(8))
     }
 
-    private static func displayDate(_ iso: String) -> String {
+    static func displayDate(_ iso: String, format: String = "MMMM d, yyyy") -> String {
         let input = DateFormatter()
         input.locale = Locale(identifier: "en_US_POSIX")
         input.timeZone = TimeZone(identifier: "UTC")
@@ -215,7 +215,7 @@ struct ClipDraft: Equatable {
         let output = DateFormatter()
         output.locale = Locale(identifier: "en_US_POSIX")
         output.timeZone = TimeZone(identifier: "UTC")
-        output.dateFormat = "MMMM d, yyyy"
+        output.dateFormat = format
         return output.string(from: date)
     }
 }

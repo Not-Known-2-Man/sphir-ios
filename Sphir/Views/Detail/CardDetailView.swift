@@ -25,6 +25,7 @@ struct CardDetailView: View {
     @Environment(\.openURL) private var openURL
     @State private var showReader = false
     @State private var showCollections = false
+    @State private var showEdit = false
 
     init(card: Card) { navigated = card }
 
@@ -82,17 +83,17 @@ struct CardDetailView: View {
                         }
                     }
 
-                    // Reader entry point: below the image, above the description.
-                    if let webURL {
-                        openInReaderButton
-                        urlLink(webURL)
+                    if let row = Self.sourceRowText(for: card) {
+                        sourceRow(row)
                     }
 
-                    if !card.description.isEmpty {
-                        Text(card.description)
-                            .font(SphirFont.body(15))
-                            .foregroundColor(SphirColor.mutedText)
-                            .fixedSize(horizontal: false, vertical: true)
+                    aboutSection
+
+                    actionButtons(webURL)
+
+                    let memberships = Self.collections(for: card, in: appStore.collections)
+                    if !memberships.isEmpty {
+                        collectionsSection(memberships)
                     }
 
                     // Only show the raw content when it isn't just the URL
@@ -123,6 +124,10 @@ struct CardDetailView: View {
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showCollections) {
             AddToCollectionsView(card: card)
+                .environmentObject(appStore)
+        }
+        .sheet(isPresented: $showEdit) {
+            EditCardView(card: card)
                 .environmentObject(appStore)
         }
         .fullScreenCover(isPresented: $showReader) {
@@ -175,21 +180,141 @@ struct CardDetailView: View {
         .accessibilityHint("Opens the linked page inside Sphir")
     }
 
-    /// The URL shown as a tappable link (opens the in-app reader).
-    private func urlLink(_ url: URL) -> some View {
+    /// "<site> · <domain>" row under the cover; opens the in-app reader.
+    private func sourceRow(_ text: String) -> some View {
         Button {
             showReader = true
         } label: {
-            Text(url.absoluteString)
-                .font(SphirFont.body(13))
-                .foregroundColor(SphirColor.taupe)
-                .underline()
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 6) {
+                Image(systemName: "link")
+                    .font(.system(size: 12, weight: .semibold))
+                Text(text)
+                    .font(SphirFont.body(14, weight: .medium))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer(minLength: 0)
+            }
+            .foregroundColor(SphirColor.taupe)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Source: \(text)")
+        .accessibilityHint("Opens the linked page inside Sphir")
         .accessibilityIdentifier("cardURLLink")
+    }
+
+    private func chip(_ text: String, systemImage: String? = nil) -> some View {
+        HStack(spacing: 5) {
+            if let systemImage {
+                Image(systemName: systemImage).font(.system(size: 11, weight: .semibold))
+            }
+            Text(text).font(SphirFont.body(13, weight: .medium))
+        }
+        .foregroundColor(SphirColor.taupe)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(Capsule().fill(SphirColor.taupe.opacity(0.12)))
+    }
+
+    private var infoChips: [String] {
+        var chips = [CardType.label(for: card.cardType, url: card.content)]
+        if !card.price.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { chips.append(card.price) }
+        if let published = Self.publishedText(card.published) { chips.append(published) }
+        return chips
+    }
+
+    private var aboutSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("About")
+                .font(SphirFont.body(13, weight: .semibold))
+                .foregroundColor(SphirColor.mutedText)
+            if card.description.isEmpty {
+                Text(Self.emptyDescriptionHint)
+                    .font(SphirFont.body(15))
+                    .foregroundColor(SphirColor.mutedText.opacity(0.8))
+                    .accessibilityIdentifier("cardDescriptionHint")
+            } else {
+                Text(card.description)
+                    .font(SphirFont.body(15))
+                    .foregroundColor(SphirColor.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            FlowChips(spacing: 8) {
+                ForEach(infoChips, id: \.self) { chip($0) }
+            }
+            .accessibilityIdentifier("cardInfoChips")
+        }
+    }
+
+    private func collectionsSection(_ collections: [Collection]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("In collections")
+                .font(SphirFont.body(13, weight: .semibold))
+                .foregroundColor(SphirColor.mutedText)
+            FlowChips(spacing: 8) {
+                ForEach(collections) { collection in
+                    NavigationLink(value: collection) {
+                        chip(collection.name, systemImage: "rectangle.stack")
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .accessibilityIdentifier("cardCollectionsSection")
+    }
+
+    private func actionButtons(_ url: URL?) -> some View {
+        VStack(spacing: 10) {
+            if url != nil { openInReaderButton }
+            HStack(spacing: 10) {
+                Group {
+                    if let url {
+                        ShareLink(item: url) { secondaryLabel("Share", "square.and.arrow.up") }
+                    } else {
+                        ShareLink(item: card.title) { secondaryLabel("Share", "square.and.arrow.up") }
+                    }
+                }
+                .accessibilityIdentifier("cardShareButton")
+                Button { showEdit = true } label: { secondaryLabel("Edit", "pencil") }
+                    .accessibilityIdentifier("cardEditButton")
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func secondaryLabel(_ title: String, _ icon: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+            Text(title)
+        }
+        .font(SphirFont.body(16, weight: .semibold))
+        .foregroundColor(SphirColor.taupe)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 14)
+        .background(RoundedRectangle(cornerRadius: 22).stroke(SphirColor.taupe, lineWidth: 1.5))
+    }
+
+    static let emptyDescriptionHint = "No description yet. Tap Edit to add one."
+
+    /// "<site> · <domain>"; just the domain when the site is missing or the same host. Nil without a link.
+    static func sourceRowText(for card: Card) -> String? {
+        guard let url = firstWebURL(in: [card.content, card.imageURL]),
+              let domain = ClipDraft.host(of: url.absoluteString) else { return nil }
+        let site = card.site.trimmingCharacters(in: .whitespacesAndNewlines)
+        var bare = site.lowercased()
+        if bare.hasPrefix("www.") { bare.removeFirst(4) }
+        return site.isEmpty || bare == domain ? domain : "\(site) · \(domain)"
+    }
+
+    /// "Published Mar 5, 2024" for a valid YYYY-MM-DD, else nil.
+    static func publishedText(_ iso: String) -> String? {
+        let text = ClipDraft.displayDate(iso, format: "MMM d, yyyy")
+        return text.isEmpty ? nil : "Published \(text)"
+    }
+
+    /// Every collection the card is in (primary collection plus folder ids), in list order.
+    static func collections(for card: Card, in all: [Collection]) -> [Collection] {
+        all.filter { card.isIn(collectionID: $0.id, serverID: $0.serverID) }
     }
 
     /// Returns the first field that looks like a web URL, adding an https
@@ -257,10 +382,10 @@ struct CardDetailView: View {
         firstWebURL(in: [card.content, card.imageURL]) != nil
     }
 
-    /// Formatted footer text matching Figma: "Safari · Added <date>".
+    /// Footer: "Saved from Safari · <relative date>".
     static func footerText(for card: Card) -> String {
         let app = card.sourceApp == .safari ? "Safari" : card.sourceApp.label
-        return "\(app) · Added \(DetailDateFormatter.relativeString(from: card.createdAt))"
+        return "Saved from \(app) · \(DetailDateFormatter.relativeString(from: card.createdAt))"
     }
 
     @ViewBuilder
@@ -369,6 +494,40 @@ struct CardDetailView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Self.footerText(for: card))
         .accessibilityIdentifier("cardFooterRow")
+    }
+}
+
+/// Left-aligned layout that wraps chips onto new lines.
+struct FlowChips: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        arrange(width: proposal.width ?? .infinity, subviews: subviews).size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let result = arrange(width: bounds.width, subviews: subviews)
+        for (index, origin) in result.origins.enumerated() {
+            subviews[index].place(at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y), proposal: .unspecified)
+        }
+    }
+
+    private func arrange(width: CGFloat, subviews: Subviews) -> (size: CGSize, origins: [CGPoint]) {
+        var origins: [CGPoint] = []
+        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0, maxX: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > width {
+                x = 0
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            origins.append(CGPoint(x: x, y: y))
+            x += size.width + spacing
+            maxX = max(maxX, x - spacing)
+            rowHeight = max(rowHeight, size.height)
+        }
+        return (CGSize(width: maxX, height: y + rowHeight), origins)
     }
 }
 
