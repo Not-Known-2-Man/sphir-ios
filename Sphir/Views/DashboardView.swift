@@ -402,6 +402,7 @@ struct DashboardView: View {
                     )
                 }
                 .buttonStyle(.plain)
+                .collectionActions(collection)
             }
         }
     }
@@ -417,6 +418,7 @@ struct DashboardView: View {
                     CardRowView(card: card)
                 }
                 .buttonStyle(.plain)
+                .cardActions(card, menuAlignment: .trailing)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
