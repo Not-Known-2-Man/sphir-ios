@@ -38,7 +38,10 @@ final class AppStore: ObservableObject {
     private let fetchRemoteCards: CardFetcher
     typealias CardUpdater = (_ serverID: String, _ card: Card) async throws -> Void
     typealias RemoteDeleter = (_ serverID: String) async throws -> Void
+    /// Update that also carries an image change (replaced / removed).
+    typealias CardImageUpdater = (_ serverID: String, _ card: Card, _ imageChange: CardImageChange) async throws -> Void
     private let updateCardAPI: CardUpdater
+    private let updateCardImageAPI: CardImageUpdater
     private let deleteCardAPI: RemoteDeleter
     private let deleteFolderAPI: RemoteDeleter
     /// Wait between attempts to delete the server folder of a collection removed mid-create.
@@ -67,6 +70,9 @@ final class AppStore: ObservableObject {
         updateCardAPI: @escaping CardUpdater = { serverID, card in
             try await CardAPIService.updateCard(serverID: serverID, card: card)
         },
+        updateCardImageAPI: @escaping CardImageUpdater = { serverID, card, change in
+            try await CardAPIService.updateCard(serverID: serverID, card: card, imageChange: change)
+        },
         deleteCardAPI: @escaping RemoteDeleter = { try await CardAPIService.deleteCard(serverID: $0) },
         deleteFolderAPI: @escaping RemoteDeleter = { try await CollectionAPIService.deleteCollection(serverID: $0) },
         orphanDeleteRetryDelay: Duration = .seconds(2)
@@ -78,6 +84,7 @@ final class AppStore: ObservableObject {
         self.fetchFolders = fetchFolders
         self.fetchRemoteCards = fetchCards
         self.updateCardAPI = updateCardAPI
+        self.updateCardImageAPI = updateCardImageAPI
         self.deleteCardAPI = deleteCardAPI
         self.deleteFolderAPI = deleteFolderAPI
         self.orphanDeleteRetryDelay = orphanDeleteRetryDelay
@@ -220,18 +227,28 @@ final class AppStore: ObservableObject {
         return card
     }
 
-    /// Update the editable fields of an existing card.
-    func updateCard(_ card: Card) {
+    /// Update the editable fields of an existing card. `imageChange` says whether the
+    /// card's `imageURL` / `imageData` changed (replaced or removed); only then are they
+    /// stored and sent, so a text-only edit never touches the image.
+    func updateCard(_ card: Card, imageChange: CardImageChange = .unchanged) {
         guard let object = cdCard(id: card.id) else { return }
         object.setValue(card.title, forKey: "title")
         object.setValue(card.description, forKey: "cardDescription")
         object.setValue(card.content, forKey: "content")
         object.setValue(encodeTags(card.tags), forKey: "tagsJSON")
+        if imageChange != .unchanged {
+            object.setValue(card.imageURL, forKey: "imageURL")
+            object.setValue(card.imageData, forKey: "imageData")
+        }
         save()
         reload()
 
         guard hasCredentials(), let serverID = card.serverID else { return }
-        Task { try? await updateCardAPI(serverID, card) }
+        if imageChange == .unchanged {
+            Task { try? await updateCardAPI(serverID, card) }
+        } else {
+            Task { try? await updateCardImageAPI(serverID, card, imageChange) }
+        }
     }
 
     func deleteCard(id: UUID) {

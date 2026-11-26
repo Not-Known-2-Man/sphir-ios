@@ -65,10 +65,12 @@
 				Services/CardAPIService.swift,
 				Services/ClipLogic.swift,
 				Services/CollectionAPIService.swift,
+				Services/ImageCompression.swift,
 				Services/KeychainService.swift,
 				Services/LinkPreview.swift,
 				Services/NetworkService.swift,
 				Services/OCRService.swift,
+				Views/CardFlow/PhotoPicker.swift,
 			);
 			target = 5DE4D5483000879700E0A065 /* SphirShare */;
 		};
@@ -693,6 +695,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) SPHIR_SHARE_EXTENSION";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
@@ -722,6 +725,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) SPHIR_SHARE_EXTENSION";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
