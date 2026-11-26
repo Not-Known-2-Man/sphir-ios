@@ -109,6 +109,14 @@ struct BusinessDTO: Decodable {
     }
 }
 
+/// What an edit does to the card image. Only an explicit change reaches
+/// og_image: a text-only edit never clears or overwrites an image set elsewhere.
+enum CardImageChange: Equatable {
+    case unchanged
+    case replaced
+    case removed
+}
+
 struct BusinessRequest: Encodable {
     let title: String
     let description: String
@@ -126,7 +134,9 @@ struct BusinessRequest: Encodable {
     }
 
     /// `price` overrides the card's own price (the clip draft passes its edited one).
-    init(card: Card, folderServerID: String? = nil, price: String? = nil) {
+    /// `imageChange` is for updates: nil (create paths) keeps sending the card's http image;
+    /// `.unchanged` omits og_image, `.replaced` sends the card's new URL, `.removed` sends "".
+    init(card: Card, folderServerID: String? = nil, price: String? = nil, imageChange: CardImageChange? = nil) {
         let own = card.price.isEmpty ? nil : card.price
         self.price = price ?? own
         title = card.title
@@ -136,10 +146,11 @@ struct BusinessRequest: Encodable {
         // Store the card type as a hidden "_<type>" tag; own cards (.originalScribe) too.
         tags = card.tags.filter { !$0.hasPrefix("_") } + [card.cardType.typeTag]
         folderID = folderServerID
-        if let img = card.imageURL, img.hasPrefix("http://") || img.hasPrefix("https://") {
-            ogImage = img
-        } else {
-            ogImage = nil
+        let httpImage = card.imageURL.flatMap { $0.hasPrefix("http://") || $0.hasPrefix("https://") ? $0 : nil }
+        switch imageChange {
+        case nil, .replaced?: ogImage = httpImage
+        case .unchanged?:     ogImage = nil
+        case .removed?:       ogImage = ""
         }
     }
 }
@@ -154,6 +165,14 @@ struct BusinessFoldersRequest: Encodable {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(folderIDs.map { Int($0).map(AnyEncodable.init) ?? AnyEncodable($0) }, forKey: .folderIDs)
     }
+}
+
+private struct ImageUploadRequest: Encodable {
+    let data: String
+}
+
+private struct ImageUploadResponse: Decodable {
+    let url: String
 }
 
 enum CardAPIService {
@@ -214,13 +233,25 @@ enum CardAPIService {
         )
     }
 
-    /// PUT /api/v1/businesses/{id}
-    static func updateCard(serverID: String, card: Card) async throws {
-        let _: BusinessDTO = try await NetworkService.shared.request(
+    /// PUT /api/v1/businesses/{id}. og_image is only sent for an explicit image change.
+    static func updateCard(serverID: String, card: Card, imageChange: CardImageChange = .unchanged,
+                           using service: NetworkService = .shared) async throws {
+        let _: BusinessDTO = try await service.request(
             "/api/v1/businesses/\(serverID)",
             method: .put,
-            body: BusinessRequest(card: card)
+            body: BusinessRequest(card: card, imageChange: imageChange)
         )
+    }
+
+    /// POST /api/v1/images {data: "data:image/jpeg;base64,..."} -> 201 {id, url}.
+    /// Returns the image URL to store as the card's og_image. Needs a signed-in user.
+    static func uploadImage(_ jpeg: Data, using service: NetworkService = .shared) async throws -> String {
+        let response: ImageUploadResponse = try await service.request(
+            "/api/v1/images",
+            method: .post,
+            body: ImageUploadRequest(data: "data:image/jpeg;base64,\(jpeg.base64EncodedString())")
+        )
+        return response.url
     }
 
     /// DELETE /api/v1/businesses/{id}

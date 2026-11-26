@@ -48,17 +48,29 @@ final class ClipFlowModel: ObservableObject {
     /// Creates a collection (nil on failure). The app passes its store; the
     /// extension uses the API directly when signed in.
     private let createCollectionAction: (@MainActor (String) async -> ClipCollection?)?
+    /// Uploads a JPEG and returns its URL (POST /api/v1/images). Tests pass a fake.
+    private let uploadImage: @MainActor (Data) async throws -> String
+    /// POST /api/v1/businesses. Tests pass a fake.
+    private let createCardRequest: @MainActor (BusinessRequest) async throws -> BusinessDTO
     /// True inside the main app (light background, local-store queue).
     let inApp: Bool
-    private var signedIn = KeychainService.hasCredentials
+    private var signedIn: Bool
     private var started = false
+    /// The user picked an image for this clip (it still has to be uploaded on save).
+    private(set) var hasPickedImage = false
 
     /// `queue` stores a clip that could not be created online: the App Group
     /// queue in the extension, the local store in the app.
     init(content: SharedContent, sharedCollections: [SharedCollectionDTO], inApp: Bool = false,
+         signedIn: Bool = KeychainService.hasCredentials,
          queue: @escaping @MainActor (SharePayload) -> UUID,
-         createCollection: (@MainActor (String) async -> ClipCollection?)? = nil) {
+         createCollection: (@MainActor (String) async -> ClipCollection?)? = nil,
+         uploadImage: @escaping @MainActor (Data) async throws -> String = { try await CardAPIService.uploadImage($0) },
+         createCardRequest: @escaping @MainActor (BusinessRequest) async throws -> BusinessDTO = { try await CardAPIService.createCard($0) }) {
         self.createCollectionAction = createCollection
+        self.signedIn = signedIn
+        self.uploadImage = uploadImage
+        self.createCardRequest = createCardRequest
         self.content = content
         self.sharedCollections = sharedCollections
         self.inApp = inApp
@@ -186,6 +198,16 @@ final class ClipFlowModel: ObservableObject {
         }
     }
 
+    // MARK: Image
+
+    /// The user picked (or took) a photo: it becomes the cover right away, resized to a
+    /// JPEG that fits the upload limit. Data that is not an image changes nothing.
+    func pickImage(_ data: Data) {
+        guard let jpeg = ImageCompression.jpegForUpload(data) else { return }
+        coverData = jpeg
+        hasPickedImage = true
+    }
+
     // MARK: Save
 
     func save() async {
@@ -197,7 +219,11 @@ final class ClipFlowModel: ObservableObject {
         switch path {
         case .online(let folderID):
             do {
-                let dto = try await CardAPIService.createCard(draft.request(folderServerID: folderID))
+                // A picked image is uploaded first; its URL becomes the card's og_image.
+                if hasPickedImage, let picked = coverData {
+                    draft.imageURL = try await uploadImage(picked)
+                }
+                let dto = try await createCardRequest(draft.request(folderServerID: folderID))
                 savedServerID = dto.serverID
                 if let cardID = dto.serverID { await addToOtherCollections(cardID: cardID) }
                 phase = .saved
@@ -345,6 +371,10 @@ private struct PreviewCardView: View {
     @ObservedObject var model: ClipFlowModel
     @State private var showNewCollection = false
     @State private var newCollectionName = ""
+    @State private var showLibrary = false
+    #if !SPHIR_SHARE_EXTENSION
+    @State private var showCamera = false
+    #endif
     let onCrop: (() -> Void)?
     let onCancel: () -> Void
 
@@ -437,6 +467,7 @@ private struct PreviewCardView: View {
     private var card: some View {
         VStack(alignment: .leading, spacing: 12) {
             CoverView(urlString: model.draft.imageURL, data: model.coverData, type: model.draft.type)
+                .overlay(alignment: .bottomTrailing) { imageButton }
 
             HStack {
                 Text(model.draft.typeLabel)
@@ -507,6 +538,53 @@ private struct PreviewCardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 20).fill(Color.white))
         .shadow(color: Color.black.opacity(0.08), radius: 10, y: 4)
+    }
+
+    private var hasImage: Bool { model.coverData != nil || model.draft.imageURL != nil }
+
+    /// "Add image" / "Change image" over the cover: photo library, plus "Take photo" in the
+    /// app (share extensions cannot use the camera; SPHIR_SHARE_EXTENSION is set for that target).
+    private var imageButton: some View {
+        let title = hasImage ? "Change image" : "Add image"
+        let label = Label(title, systemImage: "photo.badge.plus")
+            .font(ShareFont.body(13, weight: .semibold))
+            .foregroundColor(.white)
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .background(Capsule().fill(Color.black.opacity(0.6)))
+            .padding(10)
+        return imageSources(label)
+            .accessibilityIdentifier("clipImageButton")
+            .accessibilityLabel(title)
+            .sheet(isPresented: $showLibrary) {
+                PhotoPicker(onPick: { data in model.pickImage(data); showLibrary = false },
+                            onCancel: { showLibrary = false })
+            }
+            #if !SPHIR_SHARE_EXTENSION
+            .fullScreenCover(isPresented: $showCamera) {
+                CameraPicker(
+                    onCapture: { image, _ in
+                        if let data = image.jpegData(compressionQuality: 0.9) { model.pickImage(data) }
+                        showCamera = false
+                    },
+                    onCancel: { showCamera = false })
+                    .ignoresSafeArea()
+            }
+            #endif
+    }
+
+    @ViewBuilder private func imageSources<L: View>(_ label: L) -> some View {
+        #if SPHIR_SHARE_EXTENSION
+        Button { showLibrary = true } label: { label }
+        #else
+        if CameraPicker.isAvailable {
+            Menu {
+                Button { showLibrary = true } label: { Label("Choose from library", systemImage: "photo.on.rectangle") }
+                Button { showCamera = true } label: { Label("Take photo", systemImage: "camera") }
+            } label: { label }
+        } else {
+            Button { showLibrary = true } label: { label }
+        }
+        #endif
     }
 
     private var collectionChips: some View {
