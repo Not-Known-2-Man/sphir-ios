@@ -307,7 +307,7 @@ struct ShareView: View {
         .ignoresSafeArea(edges: .bottom)
     }
 
-    private func optionRow(icon: String, title: String, sub: String, highlighted: Bool = false, action: @escaping () -> Void) -> some View {
+    private func optionRow(icon: String, title: LocalizedStringKey, sub: LocalizedStringKey, highlighted: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 12) {
                 Text(icon)
@@ -646,9 +646,15 @@ struct ShareView: View {
 
                 // Loading Title
                 HStack {
-                    Text(extractionPhase == 5 ? "✓ Ready to save" : "Extracting metadata...")
-                        .font(ShareFont.body(12, weight: .bold))
-                        .foregroundColor(extractionPhase == 5 ? Color.green : ShareColor.mutedText)
+                    if extractionPhase == 5 {
+                        Text("✓ Ready to save")
+                            .font(ShareFont.body(12, weight: .bold))
+                            .foregroundColor(Color.green)
+                    } else {
+                        Text("Extracting metadata...")
+                            .font(ShareFont.body(12, weight: .bold))
+                            .foregroundColor(ShareColor.mutedText)
+                    }
                     Spacer()
                 }
                 .padding(.horizontal, 20)
@@ -695,18 +701,32 @@ struct ShareView: View {
                     }
                     
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(title.isEmpty ? "Extracting..." : title)
-                            .font(ShareFont.body(13, weight: .bold))
-                            .foregroundColor(ShareColor.textPrimary)
-                            .lineLimit(1)
+                        if title.isEmpty {
+                            Text("Extracting...")
+                                .font(ShareFont.body(13, weight: .bold))
+                                .foregroundColor(ShareColor.mutedText)
+                                .lineLimit(1)
+                        } else {
+                            Text(title)
+                                .font(ShareFont.body(13, weight: .bold))
+                                .foregroundColor(ShareColor.textPrimary)
+                                .lineLimit(1)
+                        }
                         Text(content.urlString ?? "")
                             .font(ShareFont.body(10))
                             .foregroundColor(ShareColor.mutedText)
                             .lineLimit(1)
-                        Text(descriptionText.isEmpty ? "Reading page content..." : descriptionText)
-                            .font(ShareFont.body(11))
-                            .foregroundColor(Color(red: 90/255, green: 84/255, blue: 76/255))
-                            .lineLimit(2)
+                        if descriptionText.isEmpty {
+                            Text("Reading page content...")
+                                .font(ShareFont.body(11))
+                                .foregroundColor(Color(red: 90/255, green: 84/255, blue: 76/255))
+                                .lineLimit(2)
+                        } else {
+                            Text(descriptionText)
+                                .font(ShareFont.body(11))
+                                .foregroundColor(Color(red: 90/255, green: 84/255, blue: 76/255))
+                                .lineLimit(2)
+                        }
                     }
                     Spacer()
                 }
@@ -825,7 +845,7 @@ struct ShareView: View {
         .ignoresSafeArea(edges: .bottom)
     }
 
-    private func fieldRow(label: String, value: String, index: Int) -> some View {
+    private func fieldRow(label: LocalizedStringKey, value: String, index: Int) -> some View {
         Group {
             if extractionPhase >= index {
                 HStack {
@@ -833,7 +853,7 @@ struct ShareView: View {
                         Text(label)
                             .font(ShareFont.body(9, weight: .bold))
                             .foregroundColor(ShareColor.mutedText)
-                        Text(value.isEmpty ? (isLoadingMetadata ? "Scanning..." : "None") : value)
+                        Text(LocalizedStringKey(value.isEmpty ? (isLoadingMetadata ? "Scanning..." : "None") : value))
                             .font(ShareFont.body(11))
                             .foregroundColor(ShareColor.textPrimary)
                             .lineLimit(1)
@@ -937,8 +957,13 @@ struct ShareView: View {
                 // Done Speed Badge
                 HStack(spacing: 4) {
                     Image(systemName: "bolt.fill").font(.system(size: 10))
-                    Text("Done in \(elapsedSeconds) second\(elapsedSeconds == 1 ? "" : "s")")
-                        .font(ShareFont.body(11, weight: .bold))
+                    if elapsedSeconds == 1 {
+                        Text("Done in \(elapsedSeconds) second")
+                            .font(ShareFont.body(11, weight: .bold))
+                    } else {
+                        Text("Done in \(elapsedSeconds) seconds")
+                            .font(ShareFont.body(11, weight: .bold))
+                    }
                 }
                 .foregroundColor(ShareColor.taupe)
                 .padding(.horizontal, 16)
@@ -963,10 +988,17 @@ struct ShareView: View {
                     }
                     
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(title.isEmpty ? "New Card" : title)
-                            .font(ShareFont.body(13, weight: .bold))
-                            .foregroundColor(ShareColor.textPrimary)
-                            .lineLimit(1)
+                        if title.isEmpty {
+                            Text("New Card")
+                                .font(ShareFont.body(13, weight: .bold))
+                                .foregroundColor(ShareColor.textPrimary)
+                                .lineLimit(1)
+                        } else {
+                            Text(title)
+                                .font(ShareFont.body(13, weight: .bold))
+                                .foregroundColor(ShareColor.textPrimary)
+                                .lineLimit(1)
+                        }
                         Text(content.urlString ?? snipType)
                             .font(ShareFont.body(11))
                             .foregroundColor(ShareColor.mutedText)
@@ -986,10 +1018,17 @@ struct ShareView: View {
                     Button {
                         onDismiss()
                     } label: {
-                        Text(countdownActive ? "Done (closing in \(countdownRemaining)s)" : "Done")
-                            .font(ShareFont.body(14, weight: .semibold))
-                            .foregroundColor(ShareColor.taupe)
-                            .padding(.vertical, 8)
+                        if countdownActive {
+                            Text("Done (closing in \(countdownRemaining)s)")
+                                .font(ShareFont.body(14, weight: .semibold))
+                                .foregroundColor(ShareColor.taupe)
+                                .padding(.vertical, 8)
+                        } else {
+                            Text("Done")
+                                .font(ShareFont.body(14, weight: .semibold))
+                                .foregroundColor(ShareColor.taupe)
+                                .padding(.vertical, 8)
+                        }
                     }
                 }
                 .padding(.horizontal, 20)

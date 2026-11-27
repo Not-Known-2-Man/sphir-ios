@@ -9,8 +9,14 @@ import SwiftUI
 
 struct EmptyStateView: View {
     let icon: String
-    let title: String
-    let message: String
+    let title: LocalizedStringKey
+    let message: LocalizedStringKey
+
+    init(icon: String, title: LocalizedStringKey, message: LocalizedStringKey) {
+        self.icon = icon
+        self.title = title
+        self.message = message
+    }
 
     var body: some View {
         VStack(spacing: 12) {

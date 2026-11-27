@@ -19,7 +19,7 @@ struct SettingsView: View {
     private var appVersion: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
-        return "Version \(version) (\(build))"
+        return String(localized: "Version \(version) (\(build))")
     }
 
     var body: some View {
@@ -175,7 +175,11 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             let n = unsyncedCount
-            Text("You have \(n == 1 ? "1 item" : "\(n) items") (cards or collections) not uploaded yet. Signing out deletes \(n == 1 ? "it" : "them") from this device.")
+            if n == 1 {
+                Text("You have 1 item (cards or collections) not uploaded yet. Signing out deletes it from this device.")
+            } else {
+                Text("You have \(n) items (cards or collections) not uploaded yet. Signing out deletes them from this device.")
+            }
         }
     }
 
@@ -312,9 +316,9 @@ struct DeleteAccountSheet: View {
                 dismiss()
                 onAccountDeleted()
             case .incorrectPassword:
-                errorMessage = "Incorrect password"
+                errorMessage = String(localized: "Incorrect password")
             case .failed:
-                errorMessage = "Could not delete your account. Please try again."
+                errorMessage = String(localized: "Could not delete your account. Please try again.")
             }
         }
     }

@@ -105,12 +105,12 @@ extension SourceApp {
         switch self {
         // Raw value stays "safari" for stored cards; links can come from any
         // browser or app, so the label is neutral.
-        case .safari:     return "Web"
-        case .mail:       return "Mail"
-        case .messages:   return "Messages"
-        case .photos:     return "Photos"
-        case .screenshot: return "Screenshot"
-        case .own:        return "Written by you"
+        case .safari:     return String(localized: "Web")
+        case .mail:       return String(localized: "Mail")
+        case .messages:   return String(localized: "Messages")
+        case .photos:     return String(localized: "Photos")
+        case .screenshot: return String(localized: "Screenshot")
+        case .own:        return String(localized: "Written by you")
         }
     }
 
@@ -130,9 +130,9 @@ extension SourceApp {
 extension SyncStatus {
     var label: String {
         switch self {
-        case .synced:  return "Synced"
-        case .syncing: return "Syncing"
-        case .offline: return "Offline"
+        case .synced:  return String(localized: "Synced")
+        case .syncing: return String(localized: "Syncing")
+        case .offline: return String(localized: "Offline")
         }
     }
 

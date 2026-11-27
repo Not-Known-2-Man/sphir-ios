@@ -28,12 +28,12 @@ enum NetworkError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidURL:            return "Invalid request URL."
-        case .unauthorized:          return "Your session expired. Please sign in again."
-        case .invalidCredentials:    return "Incorrect email or password."
-        case .server(let status, _): return "The server returned an error (\(status))."
-        case .decoding:              return "Couldn't read the server's response."
-        case .transport:             return "Couldn't reach Sphir. Check your connection."
+        case .invalidURL:            return String(localized: "Invalid request URL.")
+        case .unauthorized:          return String(localized: "Your session expired. Please sign in again.")
+        case .invalidCredentials:    return String(localized: "Incorrect email or password.")
+        case .server(let status, _): return String(localized: "The server returned an error (\(status)).")
+        case .decoding:              return String(localized: "Couldn't read the server's response.")
+        case .transport:             return String(localized: "Couldn't reach Sphir. Check your connection.")
         }
     }
 }

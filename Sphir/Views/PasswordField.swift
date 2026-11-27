@@ -12,9 +12,9 @@ struct PasswordField: View {
         HStack(spacing: 8) {
             Group {
                 if isRevealed {
-                    TextField(placeholder, text: $text)
+                    TextField(LocalizedStringKey(placeholder), text: $text)
                 } else {
-                    SecureField(placeholder, text: $text)
+                    SecureField(LocalizedStringKey(placeholder), text: $text)
                 }
             }
             .textContentType(.password)
@@ -30,7 +30,7 @@ struct PasswordField: View {
                     .frame(width: 24, height: 24)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(isRevealed ? "Hide password" : "Show password")
+            .accessibilityLabel(isRevealed ? String(localized: "Hide password") : String(localized: "Show password"))
             .accessibilityIdentifier("\(id)RevealButton")
         }
     }

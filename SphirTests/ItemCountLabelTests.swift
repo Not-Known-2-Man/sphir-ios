@@ -24,6 +24,6 @@ struct ItemCountLabelTests {
     }
 
     @Test func largeNumberIsPlural() {
-        #expect(Collection.itemCountLabel(1234) == "1234 items")
+        #expect(Collection.itemCountLabel(1234, locale: Locale(identifier: "en_US")) == "1,234 items")
     }
 }

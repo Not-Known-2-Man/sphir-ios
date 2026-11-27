@@ -29,19 +29,19 @@ enum CardSource: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .photos:      return "From Photos"
-        case .camera:      return "Take Photo"
-        case .url:         return "Paste URL"
-        case .screenshots: return "From Screenshots or Photos"
+        case .photos:      return String(localized: "From Photos")
+        case .camera:      return String(localized: "Take Photo")
+        case .url:         return String(localized: "Paste URL")
+        case .screenshots: return String(localized: "From Screenshots or Photos")
         }
     }
 
     var subtitle: String {
         switch self {
-        case .photos:      return "Choose from your library"
-        case .camera:      return "Use your camera"
-        case .url:         return "Share a link"
-        case .screenshots: return "Extract text with OCR"
+        case .photos:      return String(localized: "Choose from your library")
+        case .camera:      return String(localized: "Use your camera")
+        case .url:         return String(localized: "Share a link")
+        case .screenshots: return String(localized: "Extract text with OCR")
         }
     }
 }

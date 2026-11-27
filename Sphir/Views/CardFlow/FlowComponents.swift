@@ -9,8 +9,13 @@ import SwiftUI
 
 /// Header row for a flow modal: centered title with a trailing close button.
 struct FlowModalHeader: View {
-    let title: String
+    let title: LocalizedStringKey
     let onClose: () -> Void
+
+    init(title: LocalizedStringKey, onClose: @escaping () -> Void) {
+        self.title = title
+        self.onClose = onClose
+    }
 
     var body: some View {
         ZStack {
@@ -51,10 +56,10 @@ struct CardOptionRow: View {
                     .font(.system(size: 24))
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
+                    Text(LocalizedStringKey(title))
                         .font(SphirFont.body(15, weight: .semibold))
                         .foregroundColor(SphirColor.textPrimary)
-                    Text(subtitle)
+                    Text(LocalizedStringKey(subtitle))
                         .font(SphirFont.body(12))
                         .foregroundColor(SphirColor.mutedText)
                 }

@@ -304,7 +304,7 @@ struct DashboardView: View {
                         selectedTab = tab
                     }
                 } label: {
-                    Text(tab.rawValue)
+                    Text(LocalizedStringKey(tab.rawValue))
                         .font(SphirFont.body(14, weight: .semibold))
                         .foregroundColor(selectedTab == tab ? SphirColor.textPrimary : SphirColor.mutedText)
                         .frame(maxWidth: .infinity)

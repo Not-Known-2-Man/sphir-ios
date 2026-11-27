@@ -39,29 +39,29 @@ extension CardType {
 
     var title: String {
         switch self {
-        case .text:           return "Text"
-        case .media:          return "Media"
-        case .business:       return "Business"
-        case .product:        return "Product"
-        case .originalScribe: return "Original Scribe"
-        case .article:        return "Article"
-        case .video:          return "Video"
-        case .recipe:         return "Recipe"
-        case .social:         return "Social"
+        case .text:           return String(localized: "Text")
+        case .media:          return String(localized: "Media")
+        case .business:       return String(localized: "Business")
+        case .product:        return String(localized: "Product")
+        case .originalScribe: return String(localized: "Original Scribe")
+        case .article:        return String(localized: "Article")
+        case .video:          return String(localized: "Video")
+        case .recipe:         return String(localized: "Recipe")
+        case .social:         return String(localized: "Social")
         }
     }
 
     var subtitle: String {
         switch self {
-        case .text:           return "Articles, blogs, documents"
-        case .media:          return "Videos, audio, images"
-        case .business:       return "Contacts, companies"
-        case .product:        return "Items, services"
-        case .originalScribe: return "Your own content"
-        case .article:        return "News, blog posts"
-        case .video:          return "YouTube, Vimeo, TikTok"
-        case .recipe:         return "Recipes and cooking"
-        case .social:         return "Instagram, X, Facebook"
+        case .text:           return String(localized: "Articles, blogs, documents")
+        case .media:          return String(localized: "Videos, audio, images")
+        case .business:       return String(localized: "Contacts, companies")
+        case .product:        return String(localized: "Items, services")
+        case .originalScribe: return String(localized: "Your own content")
+        case .article:        return String(localized: "News, blog posts")
+        case .video:          return String(localized: "YouTube, Vimeo, TikTok")
+        case .recipe:         return String(localized: "Recipes and cooking")
+        case .social:         return String(localized: "Instagram, X, Facebook")
         }
     }
 
@@ -98,12 +98,12 @@ extension CardType {
     /// "INSTAGRAM REEL" (S9).
     static func label(for type: CardType, url: String?) -> String {
         switch type {
-        case .article: return "ARTICLE"
-        case .product: return "PRODUCT"
-        case .video:   return "VIDEO"
-        case .recipe:  return "RECIPE"
-        case .social:  return isInstagramReel(url) ? "INSTAGRAM REEL" : "SOCIAL"
-        default:       return "LINK"
+        case .article: return String(localized: "ARTICLE")
+        case .product: return String(localized: "PRODUCT")
+        case .video:   return String(localized: "VIDEO")
+        case .recipe:  return String(localized: "RECIPE")
+        case .social:  return isInstagramReel(url) ? String(localized: "INSTAGRAM REEL") : String(localized: "SOCIAL")
+        default:       return String(localized: "LINK")
         }
     }
 
