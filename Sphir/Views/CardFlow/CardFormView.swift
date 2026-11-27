@@ -252,7 +252,7 @@ struct CardFormView: View {
 
     @ViewBuilder
     private func formField<Content: View>(
-        label: String,
+        label: LocalizedStringKey,
         @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {

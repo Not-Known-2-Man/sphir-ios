@@ -284,7 +284,7 @@ struct CardDetailView: View {
         }
     }
 
-    private func secondaryLabel(_ title: String, _ icon: String) -> some View {
+    private func secondaryLabel(_ title: LocalizedStringKey, _ icon: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
             Text(title)
