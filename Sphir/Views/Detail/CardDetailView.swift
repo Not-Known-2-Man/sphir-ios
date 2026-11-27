@@ -51,6 +51,8 @@ struct CardDetailView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     syncBadge
 
+                    if card.isPrivate { CardLockBadge(showsLabel: true) }
+
                     Text(card.title)
                         .font(SphirFont.heading(24, weight: .bold))
                         .foregroundColor(SphirColor.textPrimary)

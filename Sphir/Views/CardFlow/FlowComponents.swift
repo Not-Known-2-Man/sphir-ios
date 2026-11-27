@@ -85,3 +85,23 @@ struct CardOptionRow: View {
         .accessibilityIdentifier(identifier ?? title)
     }
 }
+
+/// "Private card" lock switch shared by the create and edit forms.
+struct PrivateCardToggle: View {
+    @Binding var isPrivate: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Toggle(isOn: $isPrivate) {
+                Label("Private card", systemImage: "lock.fill")
+                    .font(SphirFont.body(15, weight: .semibold))
+                    .foregroundColor(SphirColor.textPrimary)
+            }
+            .tint(SphirColor.taupe)
+            .accessibilityIdentifier("privateCardToggle")
+            Text("Only you can see it. Unlock it to share it in a public collection.")
+                .font(SphirFont.body(12))
+                .foregroundColor(SphirColor.mutedText)
+        }
+    }
+}

@@ -20,6 +20,8 @@ struct CardFormView: View {
     @State private var showSuccess = false
     @State private var showNewCollection = false
     @State private var newCollectionName = ""
+    /// New cards start locked.
+    @State private var isPrivate = true
 
     /// "New collection": create it locally (pushed by the normal sync), select
     /// it, and keep every typed field.
@@ -51,7 +53,8 @@ struct CardFormView: View {
             description: description,
             content: bodyText,
             tagsText: tags,
-            collectionID: selectedCollectionID ?? appStore.collections.first?.id
+            collectionID: selectedCollectionID ?? appStore.collections.first?.id,
+            isPrivate: isPrivate
         )
         showSuccess = true
     }
@@ -92,6 +95,8 @@ struct CardFormView: View {
                         }
 
                         collectionPicker
+
+                        PrivateCardToggle(isPrivate: $isPrivate)
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 16)

@@ -143,7 +143,7 @@ final class AppStore: ObservableObject {
     /// A card the user wrote themselves ("Write your own").
     @discardableResult
     func addOwnCard(title: String, description: String, content: String, tagsText: String,
-                    collectionID: UUID? = nil) -> Card {
+                    collectionID: UUID? = nil, isPrivate: Bool = true) -> Card {
         let tags = tagsText
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespaces) }
@@ -155,7 +155,8 @@ final class AppStore: ObservableObject {
             cardType: .originalScribe,
             sourceApp: .own,
             tags: tags,
-            collectionID: resolveCollectionID(collectionID)
+            collectionID: resolveCollectionID(collectionID),
+            isPrivate: isPrivate
         )
         insert(card)
         save()
@@ -236,6 +237,7 @@ final class AppStore: ObservableObject {
         object.setValue(card.description, forKey: "cardDescription")
         object.setValue(card.content, forKey: "content")
         object.setValue(encodeTags(card.tags), forKey: "tagsJSON")
+        object.setValue(card.isPrivate, forKey: "isPrivate")
         if imageChange != .unchanged {
             object.setValue(card.imageURL, forKey: "imageURL")
             object.setValue(card.imageData, forKey: "imageData")
@@ -732,6 +734,7 @@ final class AppStore: ObservableObject {
                 existingObject.setValue(dto.price, forKey: "price")
                 existingObject.setValue(dto.site, forKey: "site")
                 existingObject.setValue(dto.published, forKey: "published")
+                existingObject.setValue(dto.isPrivate, forKey: "isPrivate")
                 existingObject.setValue(encodeTags(dto.folderServerIDs), forKey: "folderIDsJSON")
                 existingObject.setValue(dto.imageURL, forKey: "imageURL")
                 
@@ -849,6 +852,7 @@ final class AppStore: ObservableObject {
         object.setValue(card.site, forKey: "site")
         object.setValue(card.published, forKey: "published")
         object.setValue(encodeTags(card.folderServerIDs), forKey: "folderIDsJSON")
+        object.setValue(card.isPrivate, forKey: "isPrivate")
     }
 
     private func save() {
@@ -908,7 +912,8 @@ final class AppStore: ObservableObject {
             createdAt: object.value(forKey: "createdAt") as? Date ?? Date(),
             collectionID: object.value(forKey: "collectionID") as? UUID,
             serverID: object.value(forKey: "serverID") as? String,
-            folderServerIDs: decodeTags(object.value(forKey: "folderIDsJSON") as? String)
+            folderServerIDs: decodeTags(object.value(forKey: "folderIDsJSON") as? String),
+            isPrivate: object.value(forKey: "isPrivate") as? Bool ?? true
         )
     }
 
