@@ -250,6 +250,34 @@ final class SphirUITests: XCTestCase {
     }
 
     @MainActor
+    func testThumbnailActionsMenuShowsShareEditDelete() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST"]
+        app.launch()
+
+        // The collection tile on the dashboard offers Share.
+        let collectionMenu = app.buttons["collectionActionsMenu"].firstMatch
+        XCTAssertTrue(collectionMenu.waitForExistence(timeout: 8))
+        collectionMenu.tap()
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label == %@", "Share")).firstMatch.waitForExistence(timeout: 5))
+        app.tap()
+
+        app.staticTexts["Reading List"].tap()
+        XCTAssertTrue(app.staticTexts["Articles and posts saved for later."].waitForExistence(timeout: 8))
+
+        // Each card tile has a visible "..." menu with the card actions.
+        let cardMenu = app.buttons["cardActionsMenu"].firstMatch
+        XCTAssertTrue(cardMenu.waitForExistence(timeout: 8))
+        cardMenu.tap()
+        for label in ["Share", "Edit", "Delete"] {
+            XCTAssertTrue(
+                app.buttons.matching(NSPredicate(format: "label == %@", label)).firstMatch.waitForExistence(timeout: 5),
+                "\(label) should be in the card actions menu."
+            )
+        }
+    }
+
+    @MainActor
     func testEditCardViaContextMenu() throws {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST"]
