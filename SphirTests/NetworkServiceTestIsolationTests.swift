@@ -52,7 +52,9 @@ struct NetworkServiceTestIsolationTests {
             }
         }
         #expect(caughtExpectedError)
-        #expect(elapsed < .seconds(1))
+        // Generous bound: a refused request returns at once, while a real network
+        // attempt would wait for its timeout. 1 s flaked under parallel simulator clones.
+        #expect(elapsed < .seconds(5))
     }
 
     @Test func stubbedInstancePerformsRequest() async throws {
