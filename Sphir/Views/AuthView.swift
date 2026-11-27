@@ -86,7 +86,11 @@ struct AuthView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             let n = itemsToLose
-            Text("This device has \(n == 1 ? "1 item" : "\(n) items") from another account that \(n == 1 ? "was" : "were") not uploaded. Signing in deletes \(n == 1 ? "it" : "them").")
+            if n == 1 {
+                Text("This device has 1 item from another account that was not uploaded. Signing in deletes it.")
+            } else {
+                Text("This device has \(n) items from another account that were not uploaded. Signing in deletes them.")
+            }
         }
     }
 
@@ -109,7 +113,7 @@ struct AuthView: View {
                 try await session.continueAsGuest()
             } catch {
                 authError = (error as? LocalizedError)?.errorDescription
-                    ?? "Couldn't connect. Check your connection and try again."
+                    ?? String(localized: "Couldn't connect. Check your connection and try again.")
             }
         }
     }
@@ -132,7 +136,7 @@ struct AuthView: View {
             }
         } catch {
             authError = (error as? LocalizedError)?.errorDescription
-                ?? "Something went wrong. Please try again."
+                ?? String(localized: "Something went wrong. Please try again.")
         }
     }
 
@@ -159,7 +163,7 @@ struct AuthView: View {
         id: String,
         keyboard: UIKeyboardType = .default
     ) -> some View {
-        TextField(placeholder, text: text)
+        TextField(LocalizedStringKey(placeholder), text: text)
             .textFieldStyle(.plain)
             .font(SphirFont.body(15))
             .foregroundColor(SphirColor.textPrimary)

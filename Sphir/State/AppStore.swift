@@ -857,7 +857,7 @@ final class AppStore: ObservableObject {
             try context.save()
         } catch {
             print("Sphir CoreData save failed: \(error)")
-            errorMessage = "Couldn't save your changes. Please try again."
+            errorMessage = String(localized: "Couldn't save your changes. Please try again.")
         }
     }
 

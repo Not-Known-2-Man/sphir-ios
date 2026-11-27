@@ -294,7 +294,7 @@ struct CardDetailView: View {
         .background(RoundedRectangle(cornerRadius: 22).stroke(SphirColor.taupe, lineWidth: 1.5))
     }
 
-    static let emptyDescriptionHint = "No description yet. Tap Edit to add one."
+    static let emptyDescriptionHint = String(localized: "No description yet. Tap Edit to add one.")
 
     /// "<site> · <domain>"; just the domain when the site is missing or the same host. Nil without a link.
     static func sourceRowText(for card: Card) -> String? {
@@ -309,7 +309,7 @@ struct CardDetailView: View {
     /// "Published Mar 5, 2024" for a valid YYYY-MM-DD, else nil.
     static func publishedText(_ iso: String) -> String? {
         let text = ClipDraft.displayDate(iso, format: "MMM d, yyyy")
-        return text.isEmpty ? nil : "Published \(text)"
+        return text.isEmpty ? nil : String(localized: "Published \(text)")
     }
 
     /// Every collection the card is in (primary collection plus folder ids), in list order.
@@ -385,7 +385,8 @@ struct CardDetailView: View {
     /// Footer: "Saved from Safari · <relative date>".
     static func footerText(for card: Card) -> String {
         let app = card.sourceApp == .safari ? "Safari" : card.sourceApp.label
-        return "Saved from \(app) · \(DetailDateFormatter.relativeString(from: card.createdAt))"
+        let date = DetailDateFormatter.relativeString(from: card.createdAt)
+        return String(localized: "Saved from \(app) · \(date)")
     }
 
     @ViewBuilder
@@ -553,7 +554,8 @@ enum DetailDateFormatter {
 
     static func relativeString(from date: Date) -> String {
         if Calendar.current.isDateInToday(date) {
-            return "Today, \(timeFormatter.string(from: date))"
+            let timeStr = timeFormatter.string(from: date)
+            return String(localized: "Today, \(timeStr)")
         } else {
             return string(from: date)
         }
@@ -568,7 +570,7 @@ struct DetailTopBar: View {
 
     var body: some View {
         ZStack {
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(SphirFont.body(17, weight: .semibold))
                 .foregroundColor(SphirColor.textPrimary)
                 .accessibilityAddTraits(.isHeader)

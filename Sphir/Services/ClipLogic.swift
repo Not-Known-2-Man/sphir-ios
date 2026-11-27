@@ -206,16 +206,16 @@ struct ClipDraft: Equatable {
         return Array(out.prefix(8))
     }
 
-    static func displayDate(_ iso: String, format: String = "MMMM d, yyyy") -> String {
+    static func displayDate(_ iso: String, format: String = "MMMM d, yyyy", locale: Locale = .current) -> String {
         let input = DateFormatter()
         input.locale = Locale(identifier: "en_US_POSIX")
         input.timeZone = TimeZone(identifier: "UTC")
         input.dateFormat = "yyyy-MM-dd"
         guard let date = input.date(from: iso) else { return "" }
         let output = DateFormatter()
-        output.locale = Locale(identifier: "en_US_POSIX")
+        output.locale = locale
         output.timeZone = TimeZone(identifier: "UTC")
-        output.dateFormat = format
+        output.dateFormat = DateFormatter.dateFormat(fromTemplate: format, options: 0, locale: locale) ?? format
         return output.string(from: date)
     }
 }
@@ -234,8 +234,8 @@ enum ClipSavePath: Equatable {
         }
     }
 
-    static let signInMessage = "Sign in to Sphir to clip"
-    static let queuedMessage = "Saved — it will sync when you open Sphir"
+    static var signInMessage: String { String(localized: "Sign in to Sphir to clip") }
+    static var queuedMessage: String { String(localized: "Saved — it will sync when you open Sphir") }
 
     static func choose(signedIn: Bool, folderServerID: String?) -> ClipSavePath {
         guard signedIn else { return .queue(.signedOut) }

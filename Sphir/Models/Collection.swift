@@ -16,9 +16,9 @@ enum CollectionPrivacy: String, CaseIterable, Codable {
     /// Human-readable label for display in badges.
     var label: String {
         switch self {
-        case .private:     return "Private"
-        case .connections: return "Connections"
-        case .public:      return "Public"
+        case .private:     return String(localized: "Private")
+        case .connections: return String(localized: "Connections")
+        case .public:      return String(localized: "Public")
         }
     }
 
@@ -71,9 +71,11 @@ struct Collection: Identifiable, Hashable {
 }
 
 extension Collection {
-    /// "1 item" for one, "N items" otherwise (including "0 items").
-    static func itemCountLabel(_ count: Int) -> String {
-        count == 1 ? "1 item" : "\(count) items"
+    /// "1 item" for one, "N items" otherwise (including "0 items"), from the
+    /// plural rules of the String Catalog ("1 elemento" / "N elementos" in Spanish).
+    static func itemCountLabel(_ count: Int, locale: Locale = .current, bundle: Bundle = .main) -> String {
+        let format = bundle.localizedString(forKey: "%lld items", value: "%lld items", table: nil)
+        return String(format: format, locale: locale, count)
     }
 
     /// Stable IDs for the seeded collections so deep links are reproducible

@@ -101,7 +101,7 @@ final class ClipFlowModel: ObservableObject {
             selectedIDs = CollectionSelection.afterCreate(id: collections[index].id)
         case .create(let name):
             guard let created = await makeCollection(name) else {
-                collectionError = "Couldn't create the collection. Try again."
+                collectionError = String(localized: "Couldn't create the collection. Try again.")
                 return
             }
             collections.append(created)
@@ -134,7 +134,7 @@ final class ClipFlowModel: ObservableObject {
     var viewCardID: String? { savedServerID ?? savedLocalID?.uuidString }
 
     private var queuedText: String {
-        inApp ? "Saved — it will sync when you're back online" : ClipSavePath.queuedMessage
+        inApp ? String(localized: "Saved — it will sync when you're back online") : ClipSavePath.queuedMessage
     }
 
     // MARK: Load
