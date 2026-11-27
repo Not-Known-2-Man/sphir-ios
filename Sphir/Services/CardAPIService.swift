@@ -56,12 +56,15 @@ struct BusinessDTO: Decodable {
     /// Every collection of the card, primary first (`folder_ids`, S8/T2);
     /// falls back to the single `folder_id` for older APIs.
     let folderServerIDs: [String]
+    /// The private lock (`is_private`); a missing or malformed value reads as locked.
+    let isPrivate: Bool
 
     private enum CodingKeys: String, CodingKey {
         case id, title, description, website, email, tags, price, site, published
         case folderID = "folder_id"
         case folderIDs = "folder_ids"
         case ogImage = "og_image"
+        case isPrivate = "is_private"
     }
 
     init(from decoder: Decoder) throws {
@@ -77,6 +80,7 @@ struct BusinessDTO: Decodable {
         price = (try? c.decode(String.self, forKey: .price)) ?? ""
         site = (try? c.decode(String.self, forKey: .site)) ?? ""
         published = (try? c.decode(String.self, forKey: .published)) ?? ""
+        isPrivate = (try? c.decode(Bool.self, forKey: .isPrivate)) ?? true
         if let ids = try? c.decode([FlexibleID].self, forKey: .folderIDs) {
             folderServerIDs = ids.map(\.value).filter { !$0.isEmpty }
         } else {
@@ -111,7 +115,8 @@ struct BusinessDTO: Decodable {
             tags: visibleTags,
             syncStatus: .synced,
             serverID: serverID,
-            folderServerIDs: folderServerIDs
+            folderServerIDs: folderServerIDs,
+            isPrivate: isPrivate
         )
     }
 }
@@ -136,11 +141,13 @@ struct BusinessRequest: Encodable {
     /// nil when empty so an update never clears what the server already has.
     let site: String?
     let published: String?
+    let isPrivate: Bool
 
     enum CodingKeys: String, CodingKey {
         case title, description, website, email, tags, price, site, published
         case folderID = "folder_id"
         case ogImage = "og_image"
+        case isPrivate = "is_private"
     }
 
     /// `price` overrides the card's own price (the clip draft passes its edited one).
@@ -151,6 +158,7 @@ struct BusinessRequest: Encodable {
         self.price = price ?? own
         site = card.site.isEmpty ? nil : card.site
         published = card.published.isEmpty ? nil : card.published
+        isPrivate = card.isPrivate
         title = card.title
         description = card.description
         website = card.content

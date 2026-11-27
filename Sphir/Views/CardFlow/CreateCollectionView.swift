@@ -136,7 +136,7 @@ struct CreateCollectionView: View {
 
     @ViewBuilder
     private func field<Content: View>(
-        label: String,
+        label: LocalizedStringKey,
         @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {

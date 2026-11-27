@@ -2235,6 +2235,23 @@
         }
       }
     },
+    "Only you can see it. Unlock it to share it in a public collection.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only you can see it. Unlock it to share it in a public collection."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo tú la ves. Desbloquéala para compartirla en una colección pública."
+          }
+        }
+      }
+    },
     "Open in Reader": {
       "extractionState": "manual",
       "localizations": {
@@ -2571,6 +2588,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Privada"
+          }
+        }
+      }
+    },
+    "Private card": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Private card"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tarjeta privada"
           }
         }
       }

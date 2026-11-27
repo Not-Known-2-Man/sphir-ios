@@ -99,10 +99,14 @@ struct CardTileView: View {
             cover
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(CardType.label(for: card.cardType, url: card.content))
-                    .font(SphirFont.body(10, weight: .bold).smallCaps())
-                    .foregroundColor(SphirColor.taupe)
-                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(CardType.label(for: card.cardType, url: card.content))
+                        .font(SphirFont.body(10, weight: .bold).smallCaps())
+                        .foregroundColor(SphirColor.taupe)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    if card.isPrivate { CardLockBadge() }
+                }
 
                 Text(card.title)
                     .font(SphirFont.body(13, weight: .bold))
@@ -183,10 +187,13 @@ struct CardRowView: View {
             thumbnail
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(card.title)
-                    .font(SphirFont.body(15, weight: .semibold))
-                    .foregroundColor(SphirColor.textPrimary)
-                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(card.title)
+                        .font(SphirFont.body(15, weight: .semibold))
+                        .foregroundColor(SphirColor.textPrimary)
+                        .lineLimit(1)
+                    if card.isPrivate { CardLockBadge() }
+                }
 
                 if !card.description.isEmpty {
                     Text(card.description)

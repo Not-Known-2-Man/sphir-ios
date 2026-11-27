@@ -52,6 +52,9 @@ struct Card: Identifiable, Hashable {
     /// Every collection of the card on the backend, primary first (empty when
     /// unknown, e.g. an older API or a card that has not synced).
     var folderServerIDs: [String]
+    /// The private lock: hides the card from other people even inside a public
+    /// collection. New cards start locked.
+    var isPrivate: Bool
 
     init(
         id: UUID = UUID(),
@@ -70,7 +73,8 @@ struct Card: Identifiable, Hashable {
         createdAt: Date = Date(),
         collectionID: UUID? = nil,
         serverID: String? = nil,
-        folderServerIDs: [String] = []
+        folderServerIDs: [String] = [],
+        isPrivate: Bool = true
     ) {
         self.id = id
         self.title = title
@@ -89,6 +93,7 @@ struct Card: Identifiable, Hashable {
         self.collectionID = collectionID
         self.serverID = serverID
         self.folderServerIDs = folderServerIDs
+        self.isPrivate = isPrivate
     }
 
     /// True when the card is filed in the collection: as its primary (local id)

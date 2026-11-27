@@ -117,7 +117,9 @@ final class PersistenceController {
             attribute("price", .stringAttributeType),
             attribute("site", .stringAttributeType),
             attribute("published", .stringAttributeType),
-            attribute("folderIDsJSON", .stringAttributeType)
+            attribute("folderIDsJSON", .stringAttributeType),
+            // Added later: optional, so the store migrates automatically; a row without it reads as locked.
+            attribute("isPrivate", .booleanAttributeType)
         ]
 
         model.entities = [collection, card]

@@ -25,6 +25,27 @@ struct PrivacyBadge: View {
     }
 }
 
+/// Lock shown on a card the owner keeps private (hidden from others even inside
+/// a public collection). Icon only on tiles and rows; `showsLabel` adds the word.
+struct CardLockBadge: View {
+    var showsLabel = false
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "lock.fill")
+                .font(.system(size: showsLabel ? 10 : 11))
+            if showsLabel {
+                Text("Private")
+                    .font(SphirFont.body(12, weight: .semibold))
+            }
+        }
+        .foregroundColor(SphirColor.mutedText)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("Private"))
+        .accessibilityIdentifier("cardLockBadge")
+    }
+}
+
 #Preview {
     VStack(spacing: 12) {
         PrivacyBadge(privacy: .private)

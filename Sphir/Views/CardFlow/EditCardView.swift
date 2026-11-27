@@ -17,6 +17,7 @@ struct EditCardView: View {
     @State private var descriptionText: String
     @State private var content: String
     @State private var tags: String
+    @State private var isPrivate: Bool
     /// JPEG of an image picked here; uploaded when the card is saved.
     @State private var newImage: Data?
     @State private var removesImage = false
@@ -34,6 +35,7 @@ struct EditCardView: View {
         _descriptionText = State(initialValue: card.description)
         _content = State(initialValue: card.content)
         _tags = State(initialValue: card.tags.joined(separator: ", "))
+        _isPrivate = State(initialValue: card.isPrivate)
     }
 
     private var canSave: Bool {
@@ -66,6 +68,7 @@ struct EditCardView: View {
                         TextField("Add tags (comma separated)", text: $tags)
                             .textFieldStyle(.plain)
                     }
+                    PrivateCardToggle(isPrivate: $isPrivate)
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
@@ -172,6 +175,7 @@ struct EditCardView: View {
         updated.title = title
         updated.description = descriptionText
         updated.content = content
+        updated.isPrivate = isPrivate
         updated.tags = tags
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespaces) }
@@ -205,7 +209,7 @@ struct EditCardView: View {
 
     @ViewBuilder
     private func field<Content: View>(
-        label: String,
+        label: LocalizedStringKey,
         @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {

@@ -51,6 +51,8 @@ struct CardDetailView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     syncBadge
 
+                    if card.isPrivate { CardLockBadge(showsLabel: true) }
+
                     Text(card.title)
                         .font(SphirFont.heading(24, weight: .bold))
                         .foregroundColor(SphirColor.textPrimary)
@@ -282,7 +284,7 @@ struct CardDetailView: View {
         }
     }
 
-    private func secondaryLabel(_ title: String, _ icon: String) -> some View {
+    private func secondaryLabel(_ title: LocalizedStringKey, _ icon: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
             Text(title)
